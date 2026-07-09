@@ -1,13 +1,13 @@
-from __future__ import annotations
-
 """Deterministic symbol-level extraction for supported source files."""
+
+from __future__ import annotations
 
 import ast
 import logging
+import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -908,9 +908,14 @@ def _render_selected_symbols(
             if is_py:
                 body_lines = _condense_decorators(body_lines)
                 body_lines = _strip_python_docstring(body_lines)
+                # Data-block truncation emits a Python `#` comment and counts
+                # brackets without tracking string state, so it only runs on
+                # Python. On JS/TS/Go it broke syntax (`#` is not a comment)
+                # and could truncate inside a template literal, silently
+                # deleting real code (e.g. a SQL LIMIT/OFFSET clause).
+                body_lines = _truncate_data_blocks(body_lines)
             elif language in {"typescript", "javascript", "go"}:
                 body_lines = _strip_leading_comments(body_lines, language)
-            body_lines = _truncate_data_blocks(body_lines)
             if symbol.symbol_type == "class" and len(body_lines) > _MAX_CLASS_BODY_LINES:
                 body = _condense_class_body(body_lines, _MAX_CLASS_BODY_LINES, method_re)
             elif symbol.symbol_type == "function" and len(body_lines) > _MAX_FUNC_BODY_LINES:

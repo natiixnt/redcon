@@ -109,6 +109,74 @@ func helper() bool {
     assert "type AuthChecker interface" in chunk.text
 
 
+def test_javascript_symbol_extraction_preserves_template_literals() -> None:
+    # A JS function whose body holds a multi-line SQL template literal.
+    # The data-block truncator is Python-oriented: it emits a `#` comment
+    # (invalid JS) and counts brackets without tracking string state, so on
+    # JS it used to fire inside the template literal and silently drop real
+    # SQL (the trailing LIMIT/OFFSET clauses). It must not touch JS at all.
+    text = """
+// Order listing query builder.
+export async function listOrdersForUser(userId, page) {
+  rows = db.query(
+    `SELECT o.id, o.total, o.status
+      FROM orders o
+      WHERE o.user_id = ${userId}
+        AND o.status IN ('paid', 'shipped')
+        AND o.total > (SELECT avg(total) FROM orders)
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+      LIMIT 20
+      OFFSET ${page * 20}`,
+  );
+  return rows;
+}
+""".strip()
+
+    chunk = select_symbol_aware_chunks(
+        file_path="src/orders.js",
+        text=text,
+        keywords=["orders", "listOrdersForUser", "query"],
+        line_budget=60,
+    )
+
+    assert chunk is not None
+    assert chunk.chunk_strategy == "symbol-extract-javascript"
+    # No Python `#` comment marker is injected into JS.
+    assert "# ..." not in chunk.text
+    # Real SQL clauses inside the template literal survive intact.
+    assert "LIMIT 20" in chunk.text
+    assert "OFFSET" in chunk.text
+    assert "GROUP BY o.id" in chunk.text
+
+
+def test_python_data_block_truncation_still_applies() -> None:
+    # Guard the other direction: gating the truncator to Python must not
+    # disable it for Python. A large inline data structure is still collapsed
+    # to its first few entries with a `# ... (N more entries)` marker.
+    entries = "\n".join(f"        {index!r}: {index} * 2," for index in range(20))
+    text = (
+        "# Order status lookup table.\n"
+        "def build_status_map():\n"
+        "    STATUS_MAP = {\n"
+        + entries
+        + "\n    }\n"
+        "    return STATUS_MAP\n"
+    ).strip()
+
+    chunk = select_symbol_aware_chunks(
+        file_path="src/status.py",
+        text=text,
+        keywords=["status", "build_status_map"],
+        line_budget=60,
+    )
+
+    assert chunk is not None
+    assert chunk.chunk_strategy == "symbol-extract-python"
+    assert "# ..." in chunk.text
+    assert "more entries" in chunk.text
+
+
 def test_pack_records_symbol_metadata_when_extraction_succeeds(tmp_path: Path) -> None:
     _write(
         tmp_path / "src" / "auth_service.py",
