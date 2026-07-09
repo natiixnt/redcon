@@ -146,7 +146,11 @@ def _get_git_dirty_paths(repo: Path) -> set[str]:
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
-            cwd=repo, capture_output=True, text=True, timeout=5, check=False,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         if result.returncode == 0:
             return {line.strip() for line in result.stdout.splitlines() if line.strip()}
@@ -251,7 +255,9 @@ def run_render_stage(
         repo=str(repo),
         max_tokens=max_tokens,
         ranked_files=[_serialize_ranked_file(item) for item in ranked[:effective_top_files]],
-        compressed_context=[_serialize_compressed_file(item) for item in compressed.compressed_files],
+        compressed_context=[
+            _serialize_compressed_file(item) for item in compressed.compressed_files
+        ],
         files_included=compressed.files_included,
         files_skipped=compressed.files_skipped,
         budget={
