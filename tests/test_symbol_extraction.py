@@ -158,9 +158,7 @@ def test_python_data_block_truncation_still_applies() -> None:
     text = (
         "# Order status lookup table.\n"
         "def build_status_map():\n"
-        "    STATUS_MAP = {\n"
-        + entries
-        + "\n    }\n"
+        "    STATUS_MAP = {\n" + entries + "\n    }\n"
         "    return STATUS_MAP\n"
     ).strip()
 
@@ -205,12 +203,16 @@ def helper() -> None:
     )
 
     data = as_json_dict(run_pack("refactor auth login", repo=tmp_path, max_tokens=1000, config=cfg))
-    entry = next(item for item in data["compressed_context"] if item["path"] == "src/auth_service.py")
+    entry = next(
+        item for item in data["compressed_context"] if item["path"] == "src/auth_service.py"
+    )
 
     assert entry["strategy"] == "symbol"
     assert entry["chunk_strategy"] == "symbol-extract-python"
     assert entry["symbols"]
-    assert {"name", "symbol_type", "path", "start_line", "end_line", "exported"} <= set(entry["symbols"][0])
+    assert {"name", "symbol_type", "path", "start_line", "end_line", "exported"} <= set(
+        entry["symbols"][0]
+    )
     assert any(item["name"] == "AuthService" for item in entry["symbols"])
     assert any(r["kind"] in {"class", "function"} for r in entry["selected_ranges"])
 
@@ -251,7 +253,9 @@ def helper() -> None:
     )
 
     data = as_json_dict(run_pack("refactor auth login", repo=tmp_path, max_tokens=1000, config=cfg))
-    entry = next(item for item in data["compressed_context"] if item["path"] == "src/auth_service.py")
+    entry = next(
+        item for item in data["compressed_context"] if item["path"] == "src/auth_service.py"
+    )
 
     assert entry["strategy"] == "snippet"
     assert entry["chunk_strategy"] == "language-aware-python"
@@ -261,8 +265,7 @@ def helper() -> None:
 
 def test_symbol_level_packing_reduces_tokens_against_full_file_pack(tmp_path: Path) -> None:
     repeated_helpers = "\n\n".join(
-        f"def helper_{index}() -> str:\n    return 'helper-{index}'"
-        for index in range(25)
+        f"def helper_{index}() -> str:\n    return 'helper-{index}'" for index in range(25)
     )
     _write(
         tmp_path / "src" / "auth_service.py",
@@ -295,13 +298,24 @@ class AuthService:
         )
     )
 
-    full_data = as_json_dict(run_pack("refactor auth login", repo=tmp_path, max_tokens=5000, config=full_cfg))
-    symbol_data = as_json_dict(run_pack("refactor auth login", repo=tmp_path, max_tokens=5000, config=symbol_cfg))
+    full_data = as_json_dict(
+        run_pack("refactor auth login", repo=tmp_path, max_tokens=5000, config=full_cfg)
+    )
+    symbol_data = as_json_dict(
+        run_pack("refactor auth login", repo=tmp_path, max_tokens=5000, config=symbol_cfg)
+    )
 
-    full_entry = next(item for item in full_data["compressed_context"] if item["path"] == "src/auth_service.py")
-    symbol_entry = next(item for item in symbol_data["compressed_context"] if item["path"] == "src/auth_service.py")
+    full_entry = next(
+        item for item in full_data["compressed_context"] if item["path"] == "src/auth_service.py"
+    )
+    symbol_entry = next(
+        item for item in symbol_data["compressed_context"] if item["path"] == "src/auth_service.py"
+    )
 
     assert full_entry["strategy"] == "full"
     assert symbol_entry["strategy"] == "symbol"
     assert symbol_entry["compressed_tokens"] < full_entry["compressed_tokens"]
-    assert symbol_data["budget"]["estimated_input_tokens"] < full_data["budget"]["estimated_input_tokens"]
+    assert (
+        symbol_data["budget"]["estimated_input_tokens"]
+        < full_data["budget"]["estimated_input_tokens"]
+    )
