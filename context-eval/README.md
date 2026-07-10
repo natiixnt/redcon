@@ -63,7 +63,7 @@ failure mode budgets exist to expose.
 ## Run it yourself
 
 ```bash
-pip install git+https://github.com/natiixnt/ContextBudget
+pip install git+https://github.com/natiixnt/redcon
 pip install aider-chat   # optional, enables the aider-repomap adapter
 
 python context-eval/run.py --repo /path/to/any/git/repo --budget 24000

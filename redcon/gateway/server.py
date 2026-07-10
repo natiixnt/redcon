@@ -9,7 +9,7 @@ provides a production-grade ASGI gateway.  Without them, it falls back to the
 existing stdlib implementation so no new hard dependency is introduced.
 
 Install gateway extras:
-    pip install 'redcon[gateway] @ git+https://github.com/natiixnt/ContextBudget'
+    pip install 'redcon[gateway] @ git+https://github.com/natiixnt/redcon'
 """
 
 from __future__ import annotations
@@ -196,7 +196,7 @@ class GatewayServer:
         else:
             logger.warning(
                 "fastapi/uvicorn not installed - using stdlib HTTP gateway. "
-                "For production use: pip install 'redcon[gateway] @ git+https://github.com/natiixnt/ContextBudget'"
+                "For production use: pip install 'redcon[gateway] @ git+https://github.com/natiixnt/redcon'"
             )
             self._start_stdlib(block=block)
 

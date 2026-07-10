@@ -10,6 +10,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Must match the trusted publisher registered on PyPI
+    # (owner/repo + release.yml + environment "pypi").
+    environment: pypi
     permissions:
       contents: write
       id-token: write
@@ -28,11 +31,13 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: Check package metadata
+        run: twine check dist/*
+
+      # Trusted publishing (OIDC): no API token or password involved.
+      # PyPA recommends tracking the release/v1 branch for this action.
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2

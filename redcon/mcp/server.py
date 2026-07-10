@@ -384,7 +384,7 @@ def create_server() -> Any:
     if not _MCP_AVAILABLE:
         raise RuntimeError(
             "mcp package is not installed. Run: "
-            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/ContextBudget'"
+            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/redcon'"
         )
 
     server = Server("redcon")
@@ -414,7 +414,7 @@ async def serve() -> None:
     if not _MCP_AVAILABLE:
         raise RuntimeError(
             "mcp package is not installed. Run: "
-            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/ContextBudget'"
+            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/redcon'"
         )
 
     server = create_server()
