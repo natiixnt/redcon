@@ -6,6 +6,7 @@
 
 Stop sending agents 200k tokens of irrelevant code. Redcon scores, compresses, and packs repo context so your agent gets what it actually needs.
 
+[![PyPI](https://img.shields.io/pypi/v/redcon)](https://pypi.org/project/redcon/)
 [![Tests](https://github.com/natiixnt/redcon/actions/workflows/test.yml/badge.svg)](https://github.com/natiixnt/redcon/actions/workflows/test.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![VS Code Extension](https://img.shields.io/visual-studio-marketplace/v/redcon.redcon?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=redcon.redcon)
@@ -38,7 +39,7 @@ The extension installs the CLI via pip, registers the MCP server for Claude Code
 ### Option 2: CLI + MCP Server
 
 ```bash
-pip install "redcon[mcp] @ git+https://github.com/natiixnt/redcon"
+pip install "redcon[mcp]"
 redcon init                      # creates redcon.toml + registers MCP
 ```
 
@@ -47,11 +48,10 @@ The `init` command auto-configures MCP so your AI agent can call `redcon_rank`, 
 ### Option 3: CLI only
 
 ```bash
-pip install git+https://github.com/natiixnt/redcon
+pip install redcon
 redcon init --no-mcp
 ```
 
-> Redcon installs directly from GitHub for now; a PyPI package is planned. Same package, same `redcon` command.
 
 ## Quick Start
 
