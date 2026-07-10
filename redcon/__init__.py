@@ -1,12 +1,12 @@
 """Redcon - deterministic context packing for LLM agents.
 
 Top-level public API uses PEP 562 lazy loading. Importing this package is
-~150 ms cheaper than eager loading because submodules like \`redcon.gateway\`
+~150 ms cheaper than eager loading because submodules like ``redcon.gateway``
 (which transitively pulls in asyncio) only load when something actually
-references them. Submodule imports like \`from redcon.cmd import X\` no longer
+references them. Submodule imports like ``from redcon.cmd import X`` no longer
 pay for the full SDK chain.
 
-Public symbol behaviour is unchanged: \`from redcon import RedconEngine\`
+Public symbol behaviour is unchanged: ``from redcon import RedconEngine``
 still works, it just defers the SDK + agents + runtime imports until the
 first attribute access.
 """
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-__version__ = "1.1.0"
+__version__ = "1.7.0"
 
 # Mapping from public symbol name to the submodule it lives in. The first
 # attribute access triggers an import of that module and caches the symbol
