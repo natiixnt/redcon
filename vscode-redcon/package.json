@@ -2,7 +2,7 @@
   "name": "redcon",
   "displayName": "Redcon - Context Budget",
   "description": "Deterministic context budgeting for AI coding agents. Rank, compress, and pack repository context under token limits.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "redcon",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -249,10 +249,18 @@
         },
         "redcon.contextSync.targets": {
           "type": "array",
-          "default": ["claude", "cursor", "copilot"],
+          "default": [
+            "claude",
+            "cursor",
+            "copilot"
+          ],
           "items": {
             "type": "string",
-            "enum": ["claude", "cursor", "copilot"]
+            "enum": [
+              "claude",
+              "cursor",
+              "copilot"
+            ]
           },
           "description": "Which AI agents to generate context files for."
         },
@@ -260,6 +268,11 @@
           "type": "number",
           "default": 30,
           "description": "Maximum number of files to include in the context map."
+        },
+        "redcon.costPerMillionTokens": {
+          "type": "number",
+          "default": 3.0,
+          "description": "USD price per million input tokens, used to convert saved tokens into an estimated dollar amount on the dashboard (default 3.0, e.g. Claude Sonnet input pricing)."
         }
       }
     },

@@ -110,6 +110,7 @@ class StateManager {
               path: filePath,
               task: data.task,
               tokens: data.budget.estimated_input_tokens ?? 0,
+              tokensSaved: data.budget.estimated_saved_tokens ?? 0,
               maxTokens: data.max_tokens ?? 30000,
               filesIncluded: data.files_included?.length ?? 0,
               generatedAt: data.generated_at ?? '',

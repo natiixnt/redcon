@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.9.0 - 2026-07-10
+
+### Added
+
+- Savings section at the top of the dashboard: cumulative tokens saved
+  across recent runs with an estimated dollar amount, plus a per-run
+  savings trend chart with hover details. The dollar conversion uses
+  the new `redcon.costPerMillionTokens` setting (default 3.0 USD).
+- Status bar now shows tokens saved next to budget usage after a run.
+
+### Changed
+
+- Dashboard redesign: data colors moved to a validated palette with
+  separate light and dark steps (the old hardcoded dark-theme colors
+  were washed out or invisible in light themes, and the navy
+  symbol-extraction slice was invisible in dark ones). Buttons, links
+  and hover tooltips now use native VS Code theme tokens.
+- Fixed the budget donut center label rendering rotated 90 degrees.
+- Strategy colors are assigned per strategy name and stay stable
+  across runs instead of depending on which strategies appear.
+- File ranking score bars use a single hue instead of traffic-light
+  coloring by rank.
+
+### Internal
+
+- Dashboard HTML rendering extracted to a pure module
+  (`webview/dashboardHtml.ts`) with no dependency on the vscode API,
+  so it can be rendered and tested standalone.
+
 ## 0.8.0 - 2026-04-27
 
 ### Added (delivered by the underlying Redcon CLI)
