@@ -53,7 +53,7 @@ redis_ttl_seconds = 86400
 Install the extra dependency:
 
 ```
-pip install "redcon[redis] @ git+https://github.com/natiixnt/ContextBudget"
+pip install "redcon[redis] @ git+https://github.com/natiixnt/redcon"
 ```
 
 ### Cache key structure

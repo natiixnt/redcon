@@ -9,8 +9,13 @@ description = "Deterministic context budgeting for coding-agent workflows"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "Redcon Contributors" }]
+authors = [{ name = "Natalia Szczepanik" }]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/natiixnt/redcon"
+Repository = "https://github.com/natiixnt/redcon"
+Issues = "https://github.com/natiixnt/redcon/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "fakeredis>=2.0", "redis>=5.0"]

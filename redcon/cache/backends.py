@@ -579,7 +579,7 @@ class RedisSummaryCacheBackend(SummaryCacheBackend):
             except ModuleNotFoundError as exc:  # pragma: no cover
                 raise RuntimeError(
                     "The 'redis' package is required for the Redis cache backend. "
-                    "Install it with: pip install 'redcon[redis] @ git+https://github.com/natiixnt/ContextBudget'"
+                    "Install it with: pip install 'redcon[redis] @ git+https://github.com/natiixnt/redcon'"
                 ) from exc
             try:
                 client = _redis.Redis.from_url(self.redis_url, decode_responses=False)
