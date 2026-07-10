@@ -382,10 +382,7 @@ def _dispatch_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 def create_server() -> Any:
     """Build and return a configured MCP server instance."""
     if not _MCP_AVAILABLE:
-        raise RuntimeError(
-            "mcp package is not installed. Run: "
-            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/redcon'"
-        )
+        raise RuntimeError("mcp package is not installed. Run: pip install 'redcon[mcp]'")
 
     server = Server("redcon")
 
@@ -412,10 +409,7 @@ def create_server() -> Any:
 async def serve() -> None:
     """Run the MCP server over stdio transport."""
     if not _MCP_AVAILABLE:
-        raise RuntimeError(
-            "mcp package is not installed. Run: "
-            "pip install 'redcon[mcp] @ git+https://github.com/natiixnt/redcon'"
-        )
+        raise RuntimeError("mcp package is not installed. Run: pip install 'redcon[mcp]'")
 
     server = create_server()
     async with stdio_server() as (read_stream, write_stream):
