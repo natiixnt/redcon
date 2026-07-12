@@ -63,16 +63,17 @@ export class DashboardPanel {
 
   private update(): void {
     const run = state.state.lastRun;
-    const cost = vscode.workspace
-      .getConfiguration('redcon')
-      .get<number>('costPerMillionTokens', 3.0);
+    const cfg = vscode.workspace.getConfiguration('redcon');
 
     this.panel.webview.html = renderDashboardHtml(
       run
         ? {
             run,
             history: state.state.runHistory,
-            costPerMillionTokens: cost,
+            costPerMillionTokens: cfg.get<number>('costPerMillionTokens', 3.0),
+            primaryMetric: cfg.get('display.primaryMetric', 'tokens'),
+            budgetPolicy: cfg.get('budget.policy', 'auto-raise'),
+            dataAccent: cfg.get('display.dataAccent', 'red'),
           }
         : null,
       getNonce(),

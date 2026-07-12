@@ -273,6 +273,38 @@
           "type": "number",
           "default": 3.0,
           "description": "USD price per million input tokens, used to convert saved tokens into an estimated dollar amount on the dashboard (default 3.0, e.g. Claude Sonnet input pricing)."
+        },
+        "redcon.display.primaryMetric": {
+          "type": "string",
+          "enum": [
+            "tokens",
+            "dollars"
+          ],
+          "default": "tokens",
+          "description": "Which number leads on the dashboard: tokens saved (default) or the estimated dollar amount."
+        },
+        "redcon.budget.policy": {
+          "type": "string",
+          "enum": [
+            "auto-raise",
+            "strict-cap",
+            "ask-first"
+          ],
+          "default": "auto-raise",
+          "description": "Displayed budget policy: auto-raise the budget on high quality risk, keep a strict cap, or ask before raising."
+        },
+        "redcon.display.dataAccent": {
+          "type": "string",
+          "enum": [
+            "red",
+            "blue",
+            "violet",
+            "crimson",
+            "wine",
+            "gradient"
+          ],
+          "default": "red",
+          "description": "Accent used for data marks on the dashboard (charts, bars, pills). Chrome red and status colors are unaffected."
         }
       }
     },

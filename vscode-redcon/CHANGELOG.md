@@ -1,33 +1,35 @@
 # Changelog
 
-## 0.9.0 - 2026-07-10
+## 0.9.0 - 2026-07-11
 
 ### Added
 
-- Savings section at the top of the dashboard: cumulative tokens saved
-  across recent runs with an estimated dollar amount, plus a per-run
-  savings trend chart with hover details. The dollar conversion uses
-  the new `redcon.costPerMillionTokens` setting (default 3.0 USD).
-- Status bar now shows tokens saved next to budget usage after a run.
+- Brand new analytics dashboard implementing the Redcon Analytics
+  design handoff: brand gradient banner with the redcon lockup, a
+  cumulative savings hero with per-run trend, four KPI cards with
+  budget threshold ticks and risk states, donut panels for budget and
+  strategy share, a shared-scale token impact chart and side-by-side
+  packed context / file rankings tables.
+- New settings, all live-reactive:
+  - `redcon.display.primaryMetric` (`tokens` | `dollars`) swaps which
+    number leads in the hero and the saved-this-run KPI.
+  - `redcon.budget.policy` (`auto-raise` | `strict-cap` | `ask-first`)
+    drives the budget card footnote and the high-risk note.
+  - `redcon.display.dataAccent` (`red` default, `blue`, `violet`,
+    `crimson`, `wine`, `gradient`) recolors all data marks; chrome red
+    and status colors stay fixed.
+  - `redcon.costPerMillionTokens` converts saved tokens into dollars.
+- Status bar shows tokens saved next to budget usage after a run.
 
-### Changed
+### Notes
 
-- Dashboard redesign: data colors moved to a validated palette with
-  separate light and dark steps (the old hardcoded dark-theme colors
-  were washed out or invisible in light themes, and the navy
-  symbol-extraction slice was invisible in dark ones). Buttons, links
-  and hover tooltips now use native VS Code theme tokens.
-- Fixed the budget donut center label rendering rotated 90 degrees.
-- Strategy colors are assigned per strategy name and stay stable
-  across runs instead of depending on which strategies appear.
-- File ranking score bars use a single hue instead of traffic-light
-  coloring by rank.
-
-### Internal
-
-- Dashboard HTML rendering extracted to a pure module
-  (`webview/dashboardHtml.ts`) with no dependency on the vscode API,
-  so it can be rendered and tested standalone.
+- Telegraf display font is referenced with a system-stack fallback but
+  NOT bundled: the Pangram Pangram license must be verified before
+  shipping the OTF files inside the extension.
+- Run history now records tokens saved per run (drives the hero and
+  trend). Dashboard HTML rendering lives in a pure module
+  (`webview/dashboardHtml.ts`) with no vscode dependency, verified by
+  rendering both themes and all accent presets in Chromium.
 
 ## 0.8.0 - 2026-04-27
 
