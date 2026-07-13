@@ -28,6 +28,11 @@ export class DashboardPanel {
 
     const stateListener = state.onDidChange(() => this.update());
     this.disposables.push(stateListener);
+    this.disposables.push(
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('redcon')) this.update();
+      }),
+    );
 
     this.panel.webview.onDidReceiveMessage(
       (msg) => {
@@ -74,6 +79,12 @@ export class DashboardPanel {
             primaryMetric: cfg.get('display.primaryMetric', 'tokens'),
             budgetPolicy: cfg.get('budget.policy', 'auto-raise'),
             dataAccent: cfg.get('display.dataAccent', 'red'),
+            sections: {
+              kpis: cfg.get<boolean>('dashboard.showKpis', true),
+              donuts: cfg.get<boolean>('dashboard.showDonuts', true),
+              impact: cfg.get<boolean>('dashboard.showImpact', true),
+              tables: cfg.get<boolean>('dashboard.showTables', true),
+            },
           }
         : null,
       getNonce(),

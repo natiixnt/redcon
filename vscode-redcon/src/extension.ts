@@ -9,7 +9,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { state } from './state';
 import { StatusBar } from './statusBar';
-import { ChatViewProvider } from './webview/chatView';
+import { ControlViewProvider } from './webview/controlView';
+import { DashboardPanel } from './webview/dashboardPanel';
 import { RedconDecorationProvider } from './providers/decorationProvider';
 import { RedconCodeLensProvider } from './providers/codelensProvider';
 import * as commands from './commands';
@@ -29,13 +30,13 @@ export async function activate(
   // Check if redcon CLI is installed and MCP is configured
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  // --- Chat View (single sidebar panel) ---
+  // --- Control panel (single sidebar view) ---
 
-  const chatView = new ChatViewProvider(context.extensionUri);
-  commands.setChatView(chatView);
+  const controlView = new ControlViewProvider(context.extensionUri);
+  commands.setControlView(controlView);
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatView, {
+    vscode.window.registerWebviewViewProvider(ControlViewProvider.viewType, controlView, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
@@ -77,7 +78,7 @@ export async function activate(
     vscode.commands.registerCommand('redcon.loadRun', commands.cmdLoadRun),
 
     vscode.commands.registerCommand('redcon.openDashboard', () => {
-      chatView.showDashboard();
+      DashboardPanel.show(context.extensionUri);
     }),
 
     vscode.commands.registerCommand('redcon.syncContext', commands.cmdSyncContext),
@@ -87,11 +88,11 @@ export async function activate(
     }),
 
     vscode.commands.registerCommand('redcon.help', () => {
-      chatView.showTutorial();
+      vscode.env.openExternal(vscode.Uri.parse('https://github.com/natiixnt/redcon#readme'));
     }),
 
     vscode.commands.registerCommand('redcon.refresh', () => {
-      chatView.refresh();
+      controlView.refresh();
       codeLensProvider.refresh();
       if (workspaceRoot) {
         state.loadHistory(workspaceRoot);
@@ -108,7 +109,7 @@ export async function activate(
         return;
       }
       const result = await runSetup(workspaceRoot);
-      chatView.setSetupState(await detectSetupState(workspaceRoot));
+      controlView.setSetupState(await detectSetupState(workspaceRoot));
       if (result.ok) {
         const action = await vscode.window.showInformationMessage(
           result.message,
@@ -127,7 +128,7 @@ export async function activate(
         return;
       }
       const result = await registerMcp(workspaceRoot);
-      chatView.setSetupState(await detectSetupState(workspaceRoot));
+      controlView.setSetupState(await detectSetupState(workspaceRoot));
       if (result.ok) {
         const action = await vscode.window.showInformationMessage(
           result.message,
@@ -142,9 +143,9 @@ export async function activate(
     }),
   );
 
-  // Detect setup state and push it to the chat view
+  // Detect setup state and push it to the control panel
   if (workspaceRoot) {
-    detectSetupState(workspaceRoot).then((s) => chatView.setSetupState(s));
+    detectSetupState(workspaceRoot).then((s) => controlView.setSetupState(s));
   }
 
   // --- Auto-refresh on save (debounced) ---
@@ -159,7 +160,7 @@ export async function activate(
         }
         autoRefreshTimer = setTimeout(() => {
           autoRefreshTimer = undefined;
-          chatView.addInfo('File saved - re-analyzing...');
+          controlView.notify('info', 'file saved - re-analyzing...');
           vscode.commands.executeCommand('redcon.pack', state.state.lastTask);
         }, 2000);
       }

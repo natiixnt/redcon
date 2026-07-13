@@ -163,7 +163,7 @@
     "views": {
       "redcon": [
         {
-          "id": "redcon.chat",
+          "id": "redcon.control",
           "name": "Redcon",
           "type": "webview"
         }
@@ -305,6 +305,46 @@
           ],
           "default": "red",
           "description": "Accent used for data marks on the dashboard (charts, bars, pills). Chrome red and status colors are unaffected."
+        },
+        "redcon.views.showLastRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the last run summary in the sidebar."
+        },
+        "redcon.views.showRecentRuns": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the recent runs list in the sidebar."
+        },
+        "redcon.views.showSetup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the setup checklist in the sidebar."
+        },
+        "redcon.views.showQuickActions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show quick action buttons in the sidebar."
+        },
+        "redcon.dashboard.showKpis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the KPI cards row on the dashboard."
+        },
+        "redcon.dashboard.showDonuts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the budget and strategy donut panels on the dashboard."
+        },
+        "redcon.dashboard.showImpact": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the token impact chart on the dashboard."
+        },
+        "redcon.dashboard.showTables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the packed context and file rankings tables on the dashboard."
         }
       }
     },

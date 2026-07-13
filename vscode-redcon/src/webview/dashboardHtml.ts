@@ -17,6 +17,13 @@ export type PrimaryMetric = 'tokens' | 'dollars';
 export type BudgetPolicy = 'auto-raise' | 'strict-cap' | 'ask-first';
 export type DataAccent = 'red' | 'blue' | 'violet' | 'crimson' | 'wine' | 'gradient';
 
+export interface DashboardSections {
+  kpis: boolean;
+  donuts: boolean;
+  impact: boolean;
+  tables: boolean;
+}
+
 export interface DashboardData {
   run: RunReport;
   history: RunHistoryEntry[];
@@ -24,6 +31,7 @@ export interface DashboardData {
   primaryMetric: PrimaryMetric;
   budgetPolicy: BudgetPolicy;
   dataAccent: DataAccent;
+  sections?: DashboardSections;
 }
 
 /* ------------------------------------------------------------------ */
@@ -544,18 +552,19 @@ function renderEmpty(): string {
 /* ------------------------------------------------------------------ */
 
 function renderBoard(data: DashboardData): string {
+  const s = data.sections ?? { kpis: true, donuts: true, impact: true, tables: true };
   return `
     ${renderBanner(data)}
-    ${renderKpis(data)}
-    <div class="duo">
+    ${s.kpis ? renderKpis(data) : ''}
+    ${s.donuts ? `<div class="duo">
       ${renderBudgetDonut(data)}
       ${renderStrategyDonut(data)}
-    </div>
-    ${renderImpact(data)}
-    <div class="tables">
+    </div>` : ''}
+    ${s.impact ? renderImpact(data) : ''}
+    ${s.tables ? `<div class="tables">
       ${renderPackedTable(data)}
       ${renderRankingsTable(data)}
-    </div>
+    </div>` : ''}
   `;
 }
 
