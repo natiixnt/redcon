@@ -181,11 +181,12 @@ export function renderControlViewHtml(data: ControlViewData, nonce: string): str
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .list-card { padding: 4px 6px; }
     .card {
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 6px; padding: 10px 12px;
     }
-    .lastrun-value { font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--delta); line-height: 1.2; }
+    .lastrun-value { font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--text); line-height: 1.2; }
     .lastrun-label { font-size: 10.5px; font-weight: 700; color: var(--text2); text-transform: lowercase; }
     .lastrun-sub { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11px; color: var(--text2); flex-wrap: wrap; }
     .lastrun-task {
@@ -209,7 +210,7 @@ export function renderControlViewHtml(data: ControlViewData, nonce: string): str
     }
     .run-row:hover { background: var(--rowHover); }
     .run-task { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
-    .run-saved { font-family: var(--mono); font-size: 11px; color: var(--delta); font-weight: 600; flex-shrink: 0; }
+    .run-saved { font-family: var(--mono); font-size: 11px; color: var(--red); font-weight: 600; flex-shrink: 0; }
     .empty-hint { font-size: 11px; color: var(--text3); padding: 2px 6px; }
 
     .setup-step { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; }
@@ -364,7 +365,7 @@ function renderRecentRuns(history: RunHistoryEntry[]): string {
   return `
     <div>
       <div class="section-title">${CHEVRON_SVG}<span>recent runs</span></div>
-      ${rows.length ? rows.join('') : '<div class="empty-hint">Run history appears here.</div>'}
+      <div class="card list-card">${rows.length ? rows.join('') : '<div class="empty-hint">Run history appears here.</div>'}</div>
     </div>
   `;
 }
@@ -375,12 +376,13 @@ function renderSetup(setup: { cliInstalled: boolean; mcpConfigured: boolean } | 
     return `
       <div>
         <div class="section-title">${CHEVRON_SVG}<span>setup</span></div>
-        <div class="setup-done-line">&#10003; CLI installed &middot; MCP configured</div>
+        <div class="card"><div class="setup-done-line">&#10003; CLI installed &middot; MCP configured</div></div>
       </div>`;
   }
   return `
     <div>
       <div class="section-title">${CHEVRON_SVG}<span>setup</span></div>
+      <div class="card">
       <div class="setup-step ${setup.cliInstalled ? 'done' : ''}">
         <span class="setup-icon">${setup.cliInstalled ? '&#10003;' : '1'}</span>
         <div class="setup-body">
@@ -394,6 +396,7 @@ function renderSetup(setup: { cliInstalled: boolean; mcpConfigured: boolean } | 
           <div class="setup-name">Register MCP for your agents</div>
           ${setup.mcpConfigured ? '' : '<button class="btn" data-action="setupMcp">Register</button>'}
         </div>
+      </div>
       </div>
     </div>
   `;
