@@ -260,16 +260,18 @@ export function renderDashboardHtml(data: DashboardData | null, nonce: string): 
       display: flex; flex-direction: column; gap: 16px; color: #fff;
     }
     .banner-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .banner-head .logo { height: 20px; width: auto; flex-shrink: 0; }
-    .banner-head .app {
+    .lockup { display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+    .lockup .logo { height: 20px; width: auto; flex-shrink: 0; margin-bottom: -1px; }
+    .lockup .app {
       font-family: var(--display); font-weight: 400; font-size: 15px;
-      color: rgba(255,255,255,0.88); margin-left: -9px; margin-top: -1px;
+      color: rgba(255,255,255,0.88); transform: translateY(-1px);
     }
-    .banner-head .divider {
+    .lockup .divider {
       width: 1px; height: 16px; background: rgba(255,255,255,0.3);
       margin: 0 10px; align-self: center; flex-shrink: 0;
     }
-    .banner-head .task {
+    .lockup .task {
+      align-self: center;
       font-family: var(--display); font-weight: 400; font-size: 17px;
       color: rgba(255,255,255,0.88);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
@@ -605,10 +607,12 @@ function renderBanner(data: DashboardData): string {
   return `
     <div class="banner">
       <div class="banner-head">
-        ${LOGO_SVG}
-        <span class="app">analytics</span>
-        <span class="divider"></span>
-        <span class="task" title="${esc(run.task)}">task: ${esc(run.task)}</span>
+        <div class="lockup">
+          ${LOGO_SVG}
+          <span class="app">analytics</span>
+          <span class="divider"></span>
+          <span class="task" title="${esc(run.task)}">task: ${esc(run.task)}</span>
+        </div>
         <div class="banner-actions">
           <button class="btn btn-ghost" data-action="copy-context">Copy Context</button>
           <button class="btn btn-primary" data-action="run-pack">Re-analyze</button>
