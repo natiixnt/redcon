@@ -345,6 +345,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show the packed context and file rankings tables on the dashboard."
+        },
+        "redcon.views.showMiniDashboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the mini savings dashboard at the top of the sidebar."
         }
       }
     },

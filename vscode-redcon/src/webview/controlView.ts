@@ -82,6 +82,7 @@ export class ControlViewProvider implements vscode.WebviewViewProvider {
   private sections(): ControlSections {
     const cfg = vscode.workspace.getConfiguration('redcon.views');
     return {
+      miniDashboard: cfg.get<boolean>('showMiniDashboard', true),
       lastRun: cfg.get<boolean>('showLastRun', true),
       recentRuns: cfg.get<boolean>('showRecentRuns', true),
       setup: cfg.get<boolean>('showSetup', true),
@@ -101,6 +102,9 @@ export class ControlViewProvider implements vscode.WebviewViewProvider {
         notice: this.notice,
         setup: this.setupState,
         sections: this.sections(),
+        costPerMillionTokens: vscode.workspace
+          .getConfiguration('redcon')
+          .get<number>('costPerMillionTokens', 3.0),
       },
       getNonce(),
     );
