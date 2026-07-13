@@ -179,20 +179,27 @@ export async function activate(
 
   if (workspaceRoot) {
     let artifactTimer: ReturnType<typeof setTimeout> | undefined;
+    let lastNewestKey: string | undefined;
     const onArtifactChange = () => {
       if (artifactTimer) clearTimeout(artifactTimer);
       artifactTimer = setTimeout(async () => {
         artifactTimer = undefined;
         await state.loadHistory(workspaceRoot);
-        // Promote the newest artifact when nothing is loaded yet, so a
-        // fresh window mirrors the latest activity by itself.
         const newest = state.state.runHistory[0];
-        if (!state.state.lastRun && newest) {
+        if (!newest) return;
+        const key = `${newest.generatedAt}|${newest.task}`;
+        // Promote when nothing is loaded yet, or when a run newer than
+        // anything seen before lands (an agent just packed): the panel
+        // follows live activity without any clicking. The very first
+        // event only fills an empty panel so window reloads never
+        // hijack a run the user picked on purpose.
+        if (!state.state.lastRun || (lastNewestKey !== undefined && key !== lastNewestKey)) {
           vscode.commands.executeCommand('redcon.loadRun', newest.path);
         }
+        lastNewestKey = key;
       }, 800);
     };
-    for (const pattern of ['*.json', '.redcon/*.json']) {
+    for (const pattern of ['*.json', '.redcon/*.json', '.redcon/runs/*.json']) {
       const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(workspaceRoot, pattern),
       );
