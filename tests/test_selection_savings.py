@@ -16,7 +16,10 @@ from redcon.core.render import _selection_savings_md_lines, render_pack_markdown
 
 def _write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    # Pin newline="\n" so the on-disk byte count matches len(content.encode())
+    # on every platform. Without it, Windows text mode rewrites "\n" to "\r\n",
+    # inflating the scanned size_bytes and breaking the exact baseline check.
+    path.write_text(content, encoding="utf-8", newline="\n")
 
 
 def _repo_with_many_files(root: Path, count: int = 30) -> int:
