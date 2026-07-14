@@ -18,7 +18,11 @@ Repository = "https://github.com/natiixnt/redcon"
 Issues = "https://github.com/natiixnt/redcon/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "fakeredis>=2.0", "redis>=5.0"]
+dev = ["pytest>=8.0", "fakeredis>=2.0", "redis>=5.0", "cryptography>=42"]
+# Offline verification of Pro license keys. Free installs never need this;
+# the core stays dependency-free and only imports cryptography when a license
+# is actually present.
+pro = ["cryptography>=42"]
 tokenizers = ["tiktoken>=0.7"]
 redis = ["redis>=5.0"]
 gateway = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]

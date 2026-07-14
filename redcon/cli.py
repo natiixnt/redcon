@@ -380,6 +380,62 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if report.failures > 0 else 0
 
 
+def _home_license_path() -> Path:
+    return Path.home() / ".redcon" / "license"
+
+
+def cmd_license(args: argparse.Namespace) -> int:
+    from redcon.entitlements import load_entitlement
+    from redcon.io_utils import atomic_write_text
+
+    if getattr(args, "activate", None):
+        path = _home_license_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, args.activate.strip() + "\n")
+        _qprint(args, f"Saved license to {path}")
+    elif getattr(args, "deactivate", False):
+        path = _home_license_path()
+        try:
+            path.unlink()
+            _qprint(args, f"Removed license at {path}")
+        except FileNotFoundError:
+            _qprint(args, "No license was installed.")
+
+    ent = load_entitlement(Path(args.repo).resolve() if getattr(args, "repo", None) else None)
+
+    if getattr(args, "json", False):
+        print(
+            _json_mod.dumps(
+                {
+                    "tier": ent.tier,
+                    "status": ent.status,
+                    "is_pro": ent.is_pro,
+                    "email": ent.email,
+                    "expires_at": ent.expires_at,
+                    "source": ent.source,
+                    "hint": ent.hint,
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    plan = "Pro" if ent.is_pro else "Free"
+    print(f"Plan: {plan} (status: {ent.status})")
+    if ent.email:
+        print(f"Licensed to: {ent.email}")
+    if ent.expires_at:
+        expiry = time.strftime("%Y-%m-%d", time.gmtime(ent.expires_at))
+        print(f"Expires: {expiry}")
+    if ent.source != "none":
+        print(f"Source: {ent.source}")
+    if ent.hint:
+        print(f"Note: {ent.hint}")
+    if not ent.is_pro and not ent.hint:
+        print("Upgrade to Pro to unlock the savings dashboard and cross-agent history.")
+    return 0
+
+
 def cmd_plan(args: argparse.Namespace) -> int:
     err = _validate_positive_int(args.top_files, "--top-files")
     if err:
@@ -2560,6 +2616,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print raw JSON to stdout (shorthand for --format json).",
     )
     doctor.set_defaults(func=cmd_doctor)
+
+    license_parser = sub.add_parser(
+        "license", help="Show, activate, or remove your redcon Pro license"
+    )
+    license_parser.add_argument(
+        "--repo",
+        default=".",
+        help="Repository to resolve a repo-local license from (default: current directory).",
+    )
+    license_parser.add_argument(
+        "--activate",
+        metavar="KEY",
+        default=None,
+        help="Install a Pro license key (saved to ~/.redcon/license).",
+    )
+    license_parser.add_argument(
+        "--deactivate",
+        action="store_true",
+        default=False,
+        help="Remove the installed license from ~/.redcon/license.",
+    )
+    license_parser.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Print the entitlement as JSON.",
+    )
+    license_parser.set_defaults(func=cmd_license)
 
     completion = sub.add_parser(
         "completion",
