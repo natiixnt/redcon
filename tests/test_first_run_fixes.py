@@ -29,6 +29,8 @@ def test_python_m_redcon_runs_cli():
         [sys.executable, "-m", "redcon", "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert result.returncode == 0
