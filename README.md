@@ -30,7 +30,7 @@ Redcon solves both. It ranks files by task relevance, compresses them with langu
 
 On a flat subscription - Claude Pro/Max, Cursor, GitHub Copilot - the token bill isn't what stings, the **usage limit** is. Redcon cuts the tokens each task needs, so the same plan covers far more work before you hit the weekly wall. Same subscription, more runway.
 
-It won't unlock a higher tier's models or lift your rate limit - it stretches the budget you already pay for, and reports exactly how much it saved.
+It stretches the budget you already pay for, and reports exactly how much it saved.
 
 ## Install
 
