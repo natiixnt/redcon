@@ -1,4 +1,4 @@
-# Redcon - Context Budget for VS Code
+# Redcon - Token Savings for AI Coding Agents
 
 Deterministic context budgeting for AI coding agents. Rank, compress, and pack repository context under explicit token limits - and watch how many tokens (and dollars) redcon saves you, directly in your editor.
 
