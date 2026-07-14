@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3 - 2026-07-14
+
+### Changed
+
+- Display name is now "Redcon - Token Savings for AI Coding Agents"
+  and the listing description leads with the benefit; the extension id
+  (redcon.redcon) is unchanged, so installs and stats carry over.
+
 ## 0.9.2 - 2026-07-14
 
 ### Fixed
