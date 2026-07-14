@@ -47,7 +47,7 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
     if fastapi is None:
         return None, None
 
-    from fastapi import Depends, FastAPI, HTTPException, Request
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request
     from fastapi.responses import JSONResponse
 
     app = FastAPI(title="Redcon Gateway", version="1.0.0-alpha", docs_url=None, redoc_url=None)
@@ -58,10 +58,16 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
 
     # ── Auth middleware ────────────────────────────────────────────────────────
 
-    async def _verify_api_key(request: Request):
+    # The Authorization header is injected via Header() rather than the whole
+    # Request. This module uses ``from __future__ import annotations``, so every
+    # annotation is a string that FastAPI resolves against the module globals -
+    # where the locally-imported ``Request`` is not visible. A parameter typed
+    # ``Request`` therefore gets misread as a query field and every request 422s.
+    # ``authorization: str | None`` resolves from builtins and sidesteps that.
+    async def _verify_api_key(authorization: str | None = Header(default=None)):
         if config.api_key is None:
             return  # auth disabled
-        auth_header = request.headers.get("Authorization", "")
+        auth_header = authorization or ""
         if not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
         token = auth_header[len("Bearer ") :]
@@ -69,6 +75,24 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
             raise HTTPException(status_code=401, detail="Invalid API key")
 
     # ── Exception handlers ─────────────────────────────────────────────────────
+    # Keep the error contract identical to the stdlib fallback so a client sees
+    # the same status codes and ``{"error": ...}`` body regardless of which
+    # server implementation is installed.
+
+    from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error_handler(request: Request, exc: RequestValidationError):
+        # A malformed JSON body (or a body that is not a JSON object) is a bad
+        # request, not a 422 - the stdlib path returns 400 here.
+        return JSONResponse(status_code=400, content={"error": "invalid request body"})
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
+        # Unknown endpoints (and any other HTTPException) report under "error",
+        # matching the stdlib handler's response shape.
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
     @app.exception_handler(Exception)
     async def _unhandled_exception_handler(request: Request, exc: Exception):
@@ -107,7 +131,7 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
     # ── POST /prepare-context ─────────────────────────────────────────────────
 
     @app.post("/prepare-context", dependencies=[Depends(_verify_api_key)])
-    async def prepare_context(body: dict, request: Request):
+    async def prepare_context(body: dict):
         with _stats_lock:
             _stats["requests_total"] += 1
             _stats["requests_active"] += 1
@@ -121,14 +145,14 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
         except HTTPException:
             raise
         except KeyError as exc:
-            raise HTTPException(status_code=422, detail=f"Missing required field: {exc}") from exc
+            raise HTTPException(status_code=400, detail=f"Missing required field: {exc}") from exc
         finally:
             with _stats_lock:
                 _stats["requests_active"] -= 1
 
     @app.post("/run-agent-step", dependencies=[Depends(_verify_api_key)])
     @app.post("/run-step", dependencies=[Depends(_verify_api_key)])
-    async def run_agent_step(body: dict, request: Request):
+    async def run_agent_step(body: dict):
         with _stats_lock:
             _stats["requests_total"] += 1
             _stats["requests_active"] += 1
@@ -142,13 +166,13 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
         except HTTPException:
             raise
         except KeyError as exc:
-            raise HTTPException(status_code=422, detail=f"Missing required field: {exc}") from exc
+            raise HTTPException(status_code=400, detail=f"Missing required field: {exc}") from exc
         finally:
             with _stats_lock:
                 _stats["requests_active"] -= 1
 
     @app.post("/report-run", dependencies=[Depends(_verify_api_key)])
-    async def report_run(body: dict, request: Request):
+    async def report_run(body: dict):
         with _stats_lock:
             _stats["requests_total"] += 1
             _stats["requests_active"] += 1
@@ -162,7 +186,7 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
         except HTTPException:
             raise
         except KeyError as exc:
-            raise HTTPException(status_code=422, detail=f"Missing required field: {exc}") from exc
+            raise HTTPException(status_code=400, detail=f"Missing required field: {exc}") from exc
         finally:
             with _stats_lock:
                 _stats["requests_active"] -= 1
