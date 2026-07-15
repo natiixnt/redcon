@@ -104,6 +104,10 @@ class RuntimeSession:
             "turn_count": len(self.turns),
             "cumulative_tokens": self.cumulative_tokens,
             "turns": list(self.turns),
+            # Persisted so a cross-replica session resume keeps the delta base;
+            # without it _restore_session always sees None and auto-delta is
+            # silently disabled for exactly the multi-replica case Redis serves.
+            "last_run_artifact": self.last_run_artifact,
         }
 
     def reset(self) -> None:
