@@ -72,11 +72,11 @@ top_files = 24
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ```
 
 Then run across all repos:

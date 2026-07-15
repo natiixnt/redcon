@@ -24,6 +24,21 @@ Manage the Claude Code `UserPromptSubmit` hook that injects a compact
 `<redcon-context>` block into every qualifying prompt. `run` is the hook
 entry point Claude Code executes. See [MCP and hooks](mcp-and-hooks.md).
 
+### `redcon license [--activate KEY] [--deactivate] [--json]`
+
+Show, activate, or remove your redcon Pro license. `--activate` saves the key to
+`~/.redcon/license`; `--deactivate` removes it. Verification is fully offline
+(Ed25519 signature check), so no network call is made and air-gapped machines work.
+Without a license redcon runs the free tier. `--repo` resolves a repo-local license
+file if one exists; `--json` prints the resolved entitlement.
+
+### `redcon insights [--repo <path>] [--json]`
+
+Analyze the recorded run history for prompt-optimization opportunities: recurring
+prompts that keep pulling large contexts, and single runs that packed far more than
+your typical one. Fully local and deterministic - no LLM call, no network. Requires
+at least 5 recorded runs. Pro feature; the free tier prints a summary teaser.
+
 ### `redcon completion <shell>`
 Print shell completion for bash, zsh or fish.
 
@@ -654,7 +669,9 @@ Each command supports `--config <path>` to load a custom `redcon.toml`.
 
 ## Workspace Config
 
-`--workspace` points to a TOML file with shared config plus one or more `[[repos]]` entries:
+`--workspace` points to a TOML file with shared config plus one or more `[[repos]]` entries.
+Place the file in a folder containing all the repos; repo paths must resolve inside that
+folder (paths reaching above it are rejected):
 
 ```toml
 [scan]
@@ -662,11 +679,11 @@ include_globs = ["**/*.py", "**/*.ts"]
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ignore_globs = ["**/generated/**"]
 ```
 

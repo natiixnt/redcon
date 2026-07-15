@@ -20,6 +20,20 @@ Use a workspace when a change crosses repository or package boundaries, for exam
 
 Workspace configuration is TOML. It combines shared config with one or more `[[repos]]` entries.
 
+Place the workspace file in a folder that contains all the repos it names - a
+monorepo root or a common parent directory. Repo paths are resolved relative to
+the workspace file and must stay inside its directory; paths that reach above
+it (`../...`) are rejected. This is deliberate containment: a workspace file
+checked into an untrusted repository must not be able to pull files from
+elsewhere on your machine into LLM-bound context.
+
+```
+~/code/
+  workspace.toml        <- the file below
+  auth-service/
+  billing-service/
+```
+
 ```toml
 name = "backend-services"
 
@@ -36,11 +50,11 @@ critical_path_keywords = ["auth", "session", "permissions"]
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ignore_globs = ["tests/fixtures/**"]
 ```
 

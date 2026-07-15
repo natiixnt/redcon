@@ -1,3 +1,6 @@
+# Copy this file to the root of the folder that contains the repos below
+# (e.g. ~/code with services/ inside). Repo paths are resolved relative to
+# this file and must stay inside its directory.
 name = "two-service-backend"
 
 [scan]
@@ -13,9 +16,9 @@ critical_path_keywords = ["auth", "session", "permissions"]
 
 [[repos]]
 label = "auth-service"
-path = "../../services/auth-service"
+path = "services/auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../../services/billing-service"
+path = "services/billing-service"
 ignore_globs = ["tests/fixtures/**"]

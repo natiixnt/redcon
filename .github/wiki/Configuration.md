@@ -222,16 +222,16 @@ top_files = 30
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ignore_globs = ["tests/fixtures/**"]
 
 [[repos]]
 label = "gateway"
-path = "../platform/packages/gateway"
+path = "platform/packages/gateway"
 include_globs = ["src/**/*.ts"]
 ```
 

@@ -1,3 +1,6 @@
+# Copy this file to the root of the folder that contains the repos below
+# (e.g. your monorepo root). Repo paths are resolved relative to this file
+# and must stay inside its directory.
 name = "app-shared-library"
 
 [scan]
@@ -13,9 +16,9 @@ critical_path_keywords = ["auth", "client", "types"]
 
 [[repos]]
 label = "web-app"
-path = "../../apps/web"
+path = "apps/web"
 
 [[repos]]
 label = "shared-ui"
-path = "../../packages/shared-ui"
+path = "packages/shared-ui"
 include_globs = ["src/**/*.ts", "src/**/*.tsx"]

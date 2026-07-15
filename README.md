@@ -120,16 +120,19 @@ Methodology, limitations, and how to add your own tool:
 
 ## MCP Integration (Pull Model)
 
-Instead of pushing a 30k-token blob to your agent, Redcon exposes 6 MCP tools the agent calls on demand:
+Instead of pushing a 30k-token blob to your agent, Redcon exposes 9 MCP tools the agent calls on demand:
 
 | Tool | What it does |
 |------|--------------|
 | `redcon_rank` | Top-K files with scores and reasons - call this first |
 | `redcon_overview` | Lightweight repo map grouped by directory |
+| `redcon_repo_map` | Top ranked files plus their code signatures, fitted under a token budget |
 | `redcon_compress` | Compressed single-file view for cheap inspection |
 | `redcon_search` | Regex search scoped to ranked files or full repo |
+| `redcon_structural_search` | ast-grep structural search - patterns match the AST, not text |
 | `redcon_budget` | Plan fitting files within a token budget |
 | `redcon_run` | Run a shell command, return its output compressed |
+| `redcon_quality_check` | Run a command and verify the compressed output against the quality harness |
 
 Typical agent flow uses ~5k tokens for exploration instead of 30k for a blob. The agent itself decides what to read in full.
 
@@ -165,7 +168,7 @@ redcon cmd-bench     # markdown table; --json for CI baselines
 redcon run "git diff" --quality-floor compact --max-output-tokens 4000
 ```
 
-**Sixteen compressors** ship today: `git_diff`, `git_status`, `git_log`, `pytest`, `cargo_test`, `npm_test` (vitest+jest), `go_test`, `grep`, `ls`, `tree`, `find`, `lint` (ruff+mypy), `docker`, `pkg_install` (pip+npm+yarn), `kubectl_get`/`kubectl_events`, `profiler` (py-spy+perf), `json_log`, `coverage`, `sql_explain` (Postgres+MySQL TREE), `bundle_stats` (webpack + esbuild metafiles). Full per-schema benchmarks: [`docs/benchmarks/cmd/`](docs/benchmarks/cmd/).
+**Twenty compressors** ship today: `git_diff`, `git_status`, `git_log`, `pytest`, `cargo_test`, `npm_test` (vitest+jest), `go_test`, `grep`, `ls`, `tree`, `find`, `lint` (ruff+mypy), `docker`, `pkg_install` (pip+npm+yarn), `kubectl_get`/`kubectl_events`, `profiler` (py-spy+perf), `json_log`, `coverage`, `sql_explain` (Postgres+MySQL TREE), `bundle_stats` (webpack + esbuild metafiles). Full per-schema benchmarks: [`docs/benchmarks/cmd/`](docs/benchmarks/cmd/).
 
 ### Cross-call dimension
 
@@ -177,7 +180,7 @@ Beyond per-call compression, four layers compose across an agent session:
 - **Snapshot delta vs prior call** (V47): when the same argv runs twice, ship only the delta. Schema-aware renderers for `pytest` (set-diff over failure names), `git_diff` (file-set with per-file +/- counts), and `coverage` (per-file pp moves) win meaningfully over generic line-diff. Always picks `min(cost_delta, cost_abs)` so non-regressive by construction.
 - **Invariant cert** (V93): every COMPACT/VERBOSE output stamps `mp_sha=<16hex>` over the sorted multiset of `(pattern, capture)` extracted from raw. Auditors recompute the cert against the compressed text to detect spurious additions or capture thinning - upgrades the existing must-preserve boolean to set-equality.
 
-Empirical measurement on 5 simulated agent sessions (`benchmarks/measure_sessions.py`): the cross-call layers add **+8.3% session-level saving** on top of the per-call compressors, with **+15% on heavy-overlap sessions** (debugging, search-and-edit) and near-zero on distinct-content sessions. V85 adversarial GA fuzzer ratchets all 16 schemas as a hard CI gate (`REDCON_V85_ENFORCE=1`).
+Empirical measurement on 5 simulated agent sessions (`benchmarks/measure_sessions.py`): the cross-call layers add **+8.3% session-level saving** on top of the per-call compressors, with **+15% on heavy-overlap sessions** (debugging, search-and-edit) and near-zero on distinct-content sessions. V85 adversarial GA fuzzer ratchets all 20 schemas as a hard CI gate (`REDCON_V85_ENFORCE=1`).
 
 ## VS Code Extension
 
@@ -194,7 +197,10 @@ Branding: red->navy gradient with triple chevron mark, glass-style UI.
 
 ## Workspaces (Multi-Repo)
 
-One task can span multiple repos:
+One task can span multiple repos. Place the workspace TOML in a folder that
+contains all the repos (a monorepo root or a common parent directory) - repo
+paths must resolve inside that folder, so a workspace file cannot reach above
+itself:
 
 ```toml
 name = "backend-services"
@@ -208,11 +214,11 @@ top_files = 24
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ignore_globs = ["tests/fixtures/**"]
 ```
 
@@ -250,7 +256,7 @@ Full reference: [docs/python-api.md](docs/python-api.md).
 
 - **Deterministic scoring**: keyword match, import graph, file role (test/docs/prod), git history
 - **Language-aware compression**: Python, TypeScript, JavaScript, Go, Rust, Java, and more
-- **Command output compression**: 16 compressors covering git, test runners, grep/rg, listings, lint, docker, pkg-install, kubectl, profilers, JSON logs, coverage, SQL EXPLAIN, and bundle stats - 70-99% reduction at compact level
+- **Command output compression**: 20 compressors covering git, test runners, grep/rg, listings, lint, docker, pkg-install, kubectl, profilers, JSON logs, coverage, SQL EXPLAIN, and bundle stats - 70-99% reduction at compact level
 - **Incremental scanning**: cached file metadata with git-aware change detection
 - **Multi-repo workspaces**: single task, multiple repos, shared config
 - **Budget policies**: enforce max tokens, quality risk levels, file counts in CI

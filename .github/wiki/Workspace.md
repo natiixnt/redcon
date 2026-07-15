@@ -21,21 +21,21 @@ top_files = 30
 
 [[repos]]
 label = "auth-service"
-path = "../auth-service"
+path = "auth-service"
 
 [[repos]]
 label = "billing-service"
-path = "../billing-service"
+path = "billing-service"
 ignore_globs = ["tests/fixtures/**"]
 
 [[repos]]
 label = "gateway"
-path = "../platform/packages/gateway"
+path = "platform/packages/gateway"
 include_globs = ["src/**/*.ts"]
 ```
 
 **Rules:**
-- `path` is resolved relative to the workspace TOML file
+- `path` is resolved relative to the workspace TOML file and must stay inside its directory; paths reaching above it (`../...`) are rejected, so place the workspace file in a common parent folder of all repos
 - `label` must be unique; it namespaces artifact paths like `auth-service:src/auth.py`
 - Repo-specific `include_globs` replace shared `scan.include_globs` for that repo
 - Repo-specific `ignore_globs` are added on top of shared `scan.ignore_globs`

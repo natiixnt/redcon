@@ -24,7 +24,7 @@ Redcon is local-first infrastructure for deterministic context selection, compre
 - [Policy and CI](policy-and-ci.md)
 - [Benchmark and Diff](benchmark-and-diff.md)
 - [Telemetry](telemetry.md)
-- [Analytics Events](analytics-events.md)
+- [Analytics Events](events.md)
 - [Migration Notes](migration.md)
 - [GitHub Action Integration](github-action.md)
 

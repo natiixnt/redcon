@@ -16,6 +16,8 @@
 | `benchmark` | Compare packing strategies |
 | `heatmap` | Aggregate historical token hotspots |
 | `watch` | Monitor incremental scan index |
+| `license` | Show or activate the Pro license (offline verification) |
+| `insights` | Prompt-optimization insights from run history (Pro) |
 
 ---
 
