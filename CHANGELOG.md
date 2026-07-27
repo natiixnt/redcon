@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fingerprint of the packed (path, text) sequence. An unchanged tree and task
   reproduce the same key and edits outside the pack keep it warm, so callers
   can key provider prompt caches on it and detect real prefix changes.
+- Production license verification key embedded; Pro licenses purchased
+  for 1.11.1 and later activate offline with `redcon license --activate`.
 
 ### Fixed
 
