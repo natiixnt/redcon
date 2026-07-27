@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `prompt_cache_key` in run reports and pack output: a stable 16-hex
+  fingerprint of the packed (path, text) sequence. An unchanged tree and task
+  reproduce the same key and edits outside the pack keep it warm, so callers
+  can key provider prompt caches on it and detect real prefix changes.
+
 ## [1.11.0] - 2026-07-23
 
 ### Added
