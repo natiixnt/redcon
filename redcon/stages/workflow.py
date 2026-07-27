@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -66,6 +67,22 @@ def _serialize_ranked_file(item: RankedFile) -> dict:
         data["repo"] = item.file.repo_label
         data["relative_path"] = item.file.relative_path
     return data
+
+
+def _prompt_cache_key(entries: list[dict]) -> str:
+    """Fingerprint the ordered pack content for prompt-cache keying.
+
+    Hashes the (path, text) sequence exactly as it lands in
+    ``compressed_context``, so byte-identical packs share a key and any
+    content or ordering change produces a new one.
+    """
+    digest = hashlib.sha256()
+    for entry in entries:
+        digest.update(str(entry.get("path", "")).encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(str(entry.get("text", "")).encode("utf-8"))
+        digest.update(b"\x01")
+    return digest.hexdigest()[:16]
 
 
 def _serialize_compressed_file(item: CompressedFile) -> dict:
@@ -324,15 +341,15 @@ def run_render_stage(
             "file_count_limit": scan_summary.file_count_limit,
             "files_seen": scan_summary.files_seen,
         }
+    serialized_context = [_serialize_compressed_file(item) for item in compressed.compressed_files]
     return RunReport(
         command="pack",
         task=task,
         repo=str(repo),
         max_tokens=max_tokens,
         ranked_files=[_serialize_ranked_file(item) for item in ranked[:effective_top_files]],
-        compressed_context=[
-            _serialize_compressed_file(item) for item in compressed.compressed_files
-        ],
+        compressed_context=serialized_context,
+        prompt_cache_key=_prompt_cache_key(serialized_context),
         files_included=compressed.files_included,
         files_skipped=compressed.files_skipped,
         budget={

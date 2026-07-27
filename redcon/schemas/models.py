@@ -326,6 +326,12 @@ class RunReport:
     # or "max" when the Pro max-compression preset was active. A run that
     # requested "max" without a license reports "default" - what actually ran.
     compression_profile: str = "default"
+    # Stable fingerprint of the packed content: sha256 over the ordered
+    # (path, text) pairs of compressed_context, first 16 hex chars. Because
+    # packing is deterministic, an unchanged tree and task reproduce the same
+    # key, so callers can use it to key provider prompt caches and to detect
+    # when the pack prefix actually changed between runs.
+    prompt_cache_key: str = ""
     # Dollar translation of the selection saving, for the "if you pay per token"
     # framing (redcon.telemetry.pricing.compute_run_costs). Empty when there is
     # no baseline to compare against. On a flat plan the value delivered is

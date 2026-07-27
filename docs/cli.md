@@ -67,6 +67,12 @@ persistently with `[compression] profile = "max"` in `redcon.toml`. Without a
 Pro license the run warns once and falls back to the default profile; `run.json`
 always records which profile actually ran (`compression_profile`).
 
+Every pack prints a `Cache key`: a stable 16-hex fingerprint of the packed
+content, reproduced exactly when the tree and task are unchanged. Edits that
+do not alter what gets packed keep the key (and any provider prompt cache
+keyed on it) warm; any real change to the packed content rotates it. The same
+value lands in `run.json` as `prompt_cache_key`.
+
 ### `redcon pack <task> --repo <path> --delta <previous-run.json>`
 Build the normal current pack artifact plus a `delta` block that contains only the
 changes relative to the previous run. The delta package records:

@@ -803,6 +803,8 @@ def cmd_pack(args: argparse.Namespace) -> int:
         f"saved={budget['estimated_saved_tokens']} tokens, "
         f"risk={budget['quality_risk_estimate']}",
     )
+    if data.get("prompt_cache_key"):
+        _qprint(args, f"Cache key: {data['prompt_cache_key']}")
     # Selection savings: the honest "value delivered" line. saved= above only
     # counts in-file compression, which is often 0. Redcon's real win is picking
     # a subset of files, so show what was sent vs dumping the whole scanned repo.
