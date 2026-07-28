@@ -34,7 +34,11 @@
     "agent",
     "compression",
     "context-window",
-    "token-budget"
+    "token-budget",
+    "cursor",
+    "mcp",
+    "claude-code",
+    "token-saver"
   ],
   "activationEvents": [
     "workspaceContains:redcon.toml"
