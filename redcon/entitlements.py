@@ -52,7 +52,7 @@ PRO_FEATURES: frozenset[str] = frozenset(
 # licenses on purchase. Empty means "no key configured yet": every license is
 # treated as unverified and the user stays free. Override for tests or a
 # self-hosted signer via REDCON_LICENSE_PUBKEY.
-_EMBEDDED_PUBLIC_KEY_B64 = "0FbwyahBFjKLGCktY3KK60sVOiaEWBZPDYpW4O1F4B0"
+_EMBEDDED_PUBLIC_KEY_B64 = "NlLwPkG5vVnUEkGRzbMAPyCn7kI4WTVuhi6Mz51EctA"
 
 _ENV_LICENSE = "REDCON_LICENSE_KEY"
 _ENV_PUBKEY = "REDCON_LICENSE_PUBKEY"

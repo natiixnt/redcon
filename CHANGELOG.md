@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-07-28
+
+### Changed
+
+- Rotated the embedded Ed25519 license verification key. Pro licenses are
+  issued under the new key; licenses signed against the previous key no longer
+  verify and must be re-issued.
+
 ## [1.11.1] - 2026-07-27
 
 ### Added
