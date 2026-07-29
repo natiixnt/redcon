@@ -12,7 +12,7 @@
  * system or to Redcon internals.
  *
  * Prerequisites:
- *   pip install git+https://github.com/natiixnt/ContextBudget     (Python side)
+ *   pip install redcon     (Python side)
  *   npm install                   (from this directory)
  *
  * Run:
