@@ -1,0 +1,33 @@
+# Redcon MCP server - Docker image
+# Runs `redcon mcp serve` over stdio for MCP clients and directory
+# introspection checks. Built from source, so the image always matches this
+# checkout (no version pin to bump on release).
+#
+# Build:   docker build -f Dockerfile.mcp -t redcon-mcp .
+# Run:     docker run --rm -i redcon-mcp
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY redcon/ redcon/
+RUN pip install --no-cache-dir ".[mcp]"
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.title="Redcon MCP Server"
+LABEL org.opencontainers.image.description="Deterministic context budgeting for coding-agent workflows (MCP server)"
+LABEL org.opencontainers.image.source="https://github.com/natiixnt/redcon"
+
+# git for the scan/drift/pr-audit paths some tools exercise
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/redcon* /usr/local/bin/
+
+RUN useradd --create-home --shell /bin/bash redcon
+USER redcon
+WORKDIR /repo
+
+ENTRYPOINT ["redcon", "mcp", "serve"]

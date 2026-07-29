@@ -19,7 +19,7 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="Redcon CLI"
 LABEL org.opencontainers.image.description="Deterministic context budgeting for coding-agent workflows"
-LABEL org.opencontainers.image.source="https://github.com/natiixnt/ContextBudget"
+LABEL org.opencontainers.image.source="https://github.com/natiixnt/redcon"
 
 # Install git for drift/pr-audit commands
 RUN apt-get update \
