@@ -120,6 +120,8 @@ Methodology, limitations, and how to add your own tool:
 
 ## MCP Integration (Pull Model)
 
+mcp-name: io.github.natiixnt/redcon
+
 Instead of pushing a 30k-token blob to your agent, Redcon exposes 9 MCP tools the agent calls on demand:
 
 | Tool | What it does |

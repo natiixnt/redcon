@@ -1,18 +1,26 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.natiixnt/redcon",
-  "description": "Deterministic repository context packing for AI coding agents. Measured 83% fewer input tokens at the same task coverage. Local, no LLM in the loop.",
+  "title": "redcon",
+  "description": "Deterministic context packing for AI coding agents; measured 83% fewer input tokens, local.",
   "repository": { "url": "https://github.com/natiixnt/redcon", "source": "github" },
-  "version": "1.11.2",
+  "version": "1.11.3",
   "packages": [
-    { "registry_type": "pypi", "identifier": "redcon", "version": "1.11.2",
-      "transport": { "type": "stdio" }, "runtime_hint": "uvx",
-      "runtime_arguments": [
-        { "type": "named", "name": "--from", "value": "redcon[mcp]==1.11.2" }
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "redcon",
+      "version": "1.11.3",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" },
+      "runtimeArguments": [
+        { "type": "named", "name": "--from", "value": "redcon[mcp]" },
+        { "type": "positional", "value": "redcon" }
       ],
-      "package_arguments": [
+      "packageArguments": [
         { "type": "positional", "value": "mcp" },
         { "type": "positional", "value": "serve" }
-      ] }
+      ]
+    }
   ]
 }
