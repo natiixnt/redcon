@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redcon"
-version = "1.11.3"
+version = "1.11.4"
 description = "Deterministic context budgeting for coding-agent workflows"
 readme = "README.md"
 keywords = [
@@ -37,7 +37,7 @@ pro = ["cryptography>=42"]
 tokenizers = ["tiktoken>=0.7"]
 redis = ["redis>=5.0"]
 gateway = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
-mcp = ["mcp>=1.0"]
+mcp = ["mcp>=1.0,<2.0"]
 # Tree-sitter symbol extraction for redcon repo-map / improved file context.
 # We list per-language wheels because tree-sitter-language-pack still ships
 # broken wheels on Python 3.14 ARM (RECORD-only, no package payload).

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-07-30
+
+### Fixed
+
+- Pin the `mcp` extra to `mcp>=1.0,<2.0`. The MCP server uses the mcp 1.x
+  `Server` API (`@server.list_tools()`), which mcp 2.0.0 removed, so
+  `redcon[mcp]` crashed on start with fresh installs. Pinned to 1.x.
+
+
 ## [1.11.3] - 2026-07-30
 
 ### Added
