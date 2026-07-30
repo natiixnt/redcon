@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.3] - 2026-07-30
+
+### Added
+
+- MCP Registry ownership marker (`mcp-name`) in the README, and a root
+  `server.json`, so redcon can be published to the official MCP Registry.
+
+
 ## [1.11.2] - 2026-07-28
 
 ### Changed
