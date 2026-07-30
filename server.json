@@ -3,23 +3,41 @@
   "name": "io.github.natiixnt/redcon",
   "title": "redcon",
   "description": "Deterministic context packing for AI coding agents; measured 83% fewer input tokens, local.",
-  "repository": { "url": "https://github.com/natiixnt/redcon", "source": "github" },
-  "version": "1.11.3",
+  "repository": {
+    "url": "https://github.com/natiixnt/redcon",
+    "source": "github"
+  },
+  "version": "1.11.4",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "redcon",
-      "version": "1.11.3",
+      "version": "1.11.4",
       "runtimeHint": "uvx",
-      "transport": { "type": "stdio" },
+      "transport": {
+        "type": "stdio"
+      },
       "runtimeArguments": [
-        { "type": "named", "name": "--from", "value": "redcon[mcp]" },
-        { "type": "positional", "value": "redcon" }
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "redcon[mcp]"
+        },
+        {
+          "type": "positional",
+          "value": "redcon"
+        }
       ],
       "packageArguments": [
-        { "type": "positional", "value": "mcp" },
-        { "type": "positional", "value": "serve" }
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "serve"
+        }
       ]
     }
   ]
