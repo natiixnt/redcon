@@ -1,3 +1,7 @@
+## 0.9.4
+
+- Marketplace metadata refresh: added `cursor`, `mcp`, `claude-code`, `token-saver` keywords for discoverability. No functional changes.
+
 # Changelog
 
 ## 0.9.3 - 2026-07-14
