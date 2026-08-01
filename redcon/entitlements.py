@@ -43,7 +43,6 @@ PRO_FEATURES: frozenset[str] = frozenset(
         "dashboard.savings",  # the savings / cross-agent history dashboard
         "history.unlimited",  # run history beyond the free retention window
         "insights.prompt",  # prompt-optimization suggestions
-        "compression.max",  # the max-compression profile (tighter tier thresholds)
     }
 )
 

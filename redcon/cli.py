@@ -829,7 +829,7 @@ def cmd_pack(args: argparse.Namespace) -> int:
             f"per token ({pack_cost.get('display_name', 'default')} input rates)",
         )
     if str(data.get("compression_profile", "")) == "max":
-        _qprint(args, "Profile: max compression (Pro)")
+        _qprint(args, "Profile: max compression")
     _qprint(
         args,
         f"Files: {files_included} included, {files_skipped} skipped"
@@ -2974,8 +2974,8 @@ def _register_packing_commands(sub: argparse._SubParsersAction) -> None:
         choices=["default", "max"],
         default=None,
         help=(
-            "Compression profile: 'max' packs tighter representations (Pro; "
-            "falls back to default without a license). Overrides [compression] profile."
+            "Compression profile: 'max' packs tighter representations. "
+            "Overrides [compression] profile."
         ),
     )
     pack.set_defaults(func=cmd_pack)

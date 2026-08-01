@@ -322,9 +322,9 @@ class RunReport:
     # picking the right files.
     context_baseline_tokens: int = 0
     files_scanned: int = 0
-    # Which compression profile shaped this run's tier thresholds: "default",
-    # or "max" when the Pro max-compression preset was active. A run that
-    # requested "max" without a license reports "default" - what actually ran.
+    # Which compression profile shaped this run's tier thresholds: "default"
+    # or "max" (the max-compression preset). An unknown profile name falls
+    # back to "default" - what actually ran.
     compression_profile: str = "default"
     # Stable fingerprint of the packed content: sha256 over the ordered
     # (path, text) pairs of compressed_context, first 16 hex chars. Because

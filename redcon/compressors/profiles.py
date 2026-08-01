@@ -6,11 +6,8 @@ A profile is a preset of tier-threshold overrides applied on top of the
 ``[compression]`` settings. The ``max`` profile tightens every threshold so
 more files land in cheaper representations; measured on this repository it
 packed ~21% fewer input tokens than the default profile at the same budget,
-top-files count, and reported quality risk.
-
-``max`` is a Pro feature (``compression.max``). When it is requested without
-an active license the run falls back to the default profile with a one-line
-warning - free behaviour never changes and nothing errors.
+top-files count, and reported quality risk. It works for everyone; no
+license is required.
 """
 
 from __future__ import annotations
@@ -22,8 +19,6 @@ from redcon.entitlements import Entitlement
 
 PROFILE_DEFAULT = "default"
 PROFILE_MAX = "max"
-
-FEATURE_MAX_COMPRESSION = "compression.max"
 
 # The max preset. Applying the profile overrides exactly these keys; users who
 # want to keep hand-tuned values for them should stay on the default profile.
@@ -44,9 +39,8 @@ def resolve_compression_profile(
     """Resolve the requested profile into effective settings.
 
     Returns ``(effective_settings, applied_profile, note)``. ``note`` is
-    non-empty only when the request could not be honored (unknown profile
-    name, or ``max`` without a Pro license) and is meant to be surfaced as a
-    single warning line. The input ``settings`` object is never mutated.
+    non-empty only when the request could not be honored (an unknown profile
+    name) and is meant to be surfaced as a single warning line. The input ``settings`` object is never mutated.
     """
     requested = (settings.profile or "").strip().lower()
     if requested in ("", PROFILE_DEFAULT):
@@ -56,12 +50,5 @@ def resolve_compression_profile(
             replace(settings, profile=PROFILE_DEFAULT),
             PROFILE_DEFAULT,
             f"unknown compression profile {requested!r} - using the default profile",
-        )
-    if not entitlement.has(FEATURE_MAX_COMPRESSION):
-        return (
-            replace(settings, profile=PROFILE_DEFAULT),
-            PROFILE_DEFAULT,
-            "compression profile 'max' is a Pro feature - using the default profile "
-            "(activate with: redcon license --activate KEY)",
         )
     return replace(settings, **MAX_PROFILE_OVERRIDES), PROFILE_MAX, ""
