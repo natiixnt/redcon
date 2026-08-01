@@ -142,8 +142,7 @@ class CompressionSettings:
     """Settings for context compression behavior."""
 
     # Named profile applied on top of these settings ("" or "default" = none;
-    # "max" = the Pro max-compression preset, resolved against the entitlement
-    # at run time - see redcon/compressors/profiles.py).
+    # "max" = the max-compression preset - see redcon/compressors/profiles.py).
     profile: str = ""
     full_file_threshold_tokens: int = 300
     snippet_score_threshold: float = 2.5

@@ -1,8 +1,9 @@
-"""The max compression profile: preset overrides, Pro gating, pipeline wiring.
+"""The max compression profile: preset overrides and pipeline wiring.
 
-The 'max' profile must tighten the tier thresholds only for an entitled (Pro)
-run, fall back to the default profile with a warning otherwise, and always
-report which profile actually ran. Free behaviour never changes.
+The 'max' profile tightens the tier thresholds for every run. It is free for
+everyone, no license required, and the run always reports which profile
+actually ran. An unknown profile name still falls back to the default with a
+warning.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from redcon.compressors.profiles import (
-    FEATURE_MAX_COMPRESSION,
     MAX_PROFILE_OVERRIDES,
     PROFILE_DEFAULT,
     PROFILE_MAX,
@@ -18,11 +18,7 @@ from redcon.compressors.profiles import (
 )
 from redcon.config import CompressionSettings, load_config_from_mapping
 from redcon.core import pipeline
-from redcon.entitlements import PRO_FEATURES, TIER_PRO, Entitlement
-
-
-def _pro() -> Entitlement:
-    return Entitlement(tier=TIER_PRO, status="active", features=PRO_FEATURES)
+from redcon.entitlements import PRO_FEATURES, Entitlement
 
 
 def _free() -> Entitlement:
@@ -34,10 +30,10 @@ def _free() -> Entitlement:
 # ---------------------------------------------------------------------------
 
 
-def test_max_compression_is_pro_gated() -> None:
-    assert FEATURE_MAX_COMPRESSION in PRO_FEATURES
-    assert _free().has(FEATURE_MAX_COMPRESSION) is False
-    assert _pro().has(FEATURE_MAX_COMPRESSION) is True
+def test_max_is_free_for_everyone() -> None:
+    assert "compression.max" not in PRO_FEATURES
+    # Ungated features are available to everyone, including a free entitlement.
+    assert _free().has("compression.max") is True
 
 
 def test_default_profile_passes_settings_through() -> None:
@@ -48,8 +44,8 @@ def test_default_profile_passes_settings_through() -> None:
     assert note == ""
 
 
-def test_max_with_pro_applies_every_override() -> None:
-    out, applied, note = resolve_compression_profile(CompressionSettings(profile="max"), _pro())
+def test_max_applies_every_override_without_a_license() -> None:
+    out, applied, note = resolve_compression_profile(CompressionSettings(profile="max"), _free())
     assert applied == PROFILE_MAX
     assert note == ""
     for key, value in MAX_PROFILE_OVERRIDES.items():
@@ -61,19 +57,8 @@ def test_max_with_pro_applies_every_override() -> None:
     assert out.summary_preview_lines < defaults.summary_preview_lines
 
 
-def test_max_without_pro_falls_back_and_warns() -> None:
-    requested = CompressionSettings(profile="max")
-    out, applied, note = resolve_compression_profile(requested, _free())
-    assert applied == PROFILE_DEFAULT
-    assert "Pro" in note
-    # Settings are the untightened defaults, and the input was not mutated.
-    defaults = CompressionSettings()
-    assert out.full_file_threshold_tokens == defaults.full_file_threshold_tokens
-    assert requested.profile == "max"
-
-
 def test_unknown_profile_falls_back_and_warns() -> None:
-    out, applied, note = resolve_compression_profile(CompressionSettings(profile="turbo"), _pro())
+    out, applied, note = resolve_compression_profile(CompressionSettings(profile="turbo"), _free())
     assert applied == PROFILE_DEFAULT
     assert "unknown" in note
     assert out.full_file_threshold_tokens == CompressionSettings().full_file_threshold_tokens
@@ -100,9 +85,8 @@ def _seed_repo(repo: Path) -> None:
         )
 
 
-def test_run_pack_max_profile_packs_tighter_and_reports_it(tmp_path: Path, monkeypatch) -> None:
+def test_run_pack_max_profile_packs_tighter_and_reports_it(tmp_path: Path) -> None:
     _seed_repo(tmp_path)
-    monkeypatch.setattr(pipeline, "load_entitlement", lambda repo=None: _pro())
 
     default_report = pipeline.run_pack(
         "adjust the request handlers", tmp_path, max_tokens=8000, record_history=False
@@ -122,9 +106,9 @@ def test_run_pack_max_profile_packs_tighter_and_reports_it(tmp_path: Path, monke
     assert 0 < max_tokens_used <= default_tokens
 
 
-def test_run_pack_max_without_license_runs_default(tmp_path: Path, monkeypatch) -> None:
+def test_run_pack_max_runs_for_free(tmp_path: Path) -> None:
+    # No license and no monkeypatch: max must still run for everyone.
     _seed_repo(tmp_path)
-    monkeypatch.setattr(pipeline, "load_entitlement", lambda repo=None: _free())
 
     report = pipeline.run_pack(
         "adjust the request handlers",
@@ -134,13 +118,12 @@ def test_run_pack_max_without_license_runs_default(tmp_path: Path, monkeypatch) 
         compression_profile="max",
     )
 
-    assert report.compression_profile == "default"
+    assert report.compression_profile == "max"
 
 
-def test_run_pack_profile_from_config_toml(tmp_path: Path, monkeypatch) -> None:
+def test_run_pack_profile_from_config_toml(tmp_path: Path) -> None:
     _seed_repo(tmp_path)
     (tmp_path / "redcon.toml").write_text('[compression]\nprofile = "max"\n', encoding="utf-8")
-    monkeypatch.setattr(pipeline, "load_entitlement", lambda repo=None: _pro())
 
     report = pipeline.run_pack(
         "adjust the request handlers", tmp_path, max_tokens=8000, record_history=False

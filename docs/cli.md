@@ -60,11 +60,10 @@ Plan the same lifecycle-aware workflow across multiple local repositories or mon
 ### `redcon pack <task> --repo <path> [--max-tokens N] [--top-files N]`
 Build compressed context package and write `run.json` + `run.md` by default.
 
-`--compression-profile max` switches to the Pro max-compression profile: tighter
+`--compression-profile max` switches to the max-compression profile: tighter
 tier thresholds that pack roughly 20% fewer input tokens at the same budget and
 reported quality risk (measured on this repository). It can also be set
-persistently with `[compression] profile = "max"` in `redcon.toml`. Without a
-Pro license the run warns once and falls back to the default profile; `run.json`
+persistently with `[compression] profile = "max"` in `redcon.toml`. `run.json`
 always records which profile actually ran (`compression_profile`).
 
 Every pack prints a `Cache key`: a stable 16-hex fingerprint of the packed
