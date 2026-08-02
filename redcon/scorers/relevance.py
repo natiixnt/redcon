@@ -93,6 +93,7 @@ def score_files(
     similarity: TaskSimilarityCallable | None = None,
     dirty_paths: set[str] | None = None,
     recent_paths: dict[str, float] | None = None,
+    changed_paths: set[str] | None = None,
 ) -> list[RankedFile]:
     """Score files for a task using deterministic keyword and import-graph heuristics."""
 
@@ -305,6 +306,48 @@ def score_files(
 
             heuristic_scores[path] = score
             reasons_by_path[path] = reasons
+
+    # -- Changed-file targeting --
+    # Files named as changed (and their one-hop import-graph neighbours) get a
+    # deterministic boost so a task scoped to a diff surfaces what it touches.
+    if changed_paths and (cfg.changed_file_boost > 0 or cfg.changed_neighbor_boost > 0):
+        by_rel: dict[str, str] = {}
+        by_path: dict[str, str] = {}
+        for record in files:
+            by_path[record.path] = record.path
+            if record.relative_path:
+                by_rel.setdefault(record.relative_path, record.path)
+        matched: set[str] = set()
+        for cp in changed_paths:
+            resolved = by_rel.get(cp) or by_path.get(cp)
+            if resolved is not None:
+                matched.add(resolved)
+        neighbours: set[str] = set()
+        if matched and cfg.changed_neighbor_boost > 0:
+            graph = build_import_graph(files, entrypoint_filenames=cfg.entrypoint_filenames)
+            for path in matched:
+                neighbours |= graph.incoming.get(path, set())
+                neighbours |= graph.outgoing.get(path, set())
+            neighbours -= matched
+        if cfg.changed_file_boost > 0:
+            for path in sorted(matched):
+                heuristic_scores[path] = heuristic_scores.get(path, 0.0) + cfg.changed_file_boost
+                bd = breakdowns.setdefault(path, {})
+                bd["changed_file"] = round(bd.get("changed_file", 0.0) + cfg.changed_file_boost, 3)
+                _add_reason(reasons_by_path.setdefault(path, []), "explicitly changed file")
+        if cfg.changed_neighbor_boost > 0:
+            for path in sorted(neighbours):
+                heuristic_scores[path] = (
+                    heuristic_scores.get(path, 0.0) + cfg.changed_neighbor_boost
+                )
+                bd = breakdowns.setdefault(path, {})
+                bd["changed_neighbor"] = round(
+                    bd.get("changed_neighbor", 0.0) + cfg.changed_neighbor_boost, 3
+                )
+                _add_reason(
+                    reasons_by_path.setdefault(path, []),
+                    "imports or imported by a changed file",
+                )
 
     historical_adjustments = compute_historical_adjustments(
         task,

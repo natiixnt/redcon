@@ -485,6 +485,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         repo=args.repo,
         workspace=args.workspace,
         top_files=args.top_files,
+        changed_files=getattr(args, "changed", None),
     )
 
     if not data.get("ranked_files"):
@@ -709,6 +710,7 @@ def cmd_pack(args: argparse.Namespace) -> int:
         top_files=args.top_files,
         delta_from=args.delta,
         compression_profile=getattr(args, "compression_profile", None),
+        changed_files=getattr(args, "changed", None),
     )
 
     files_included = len(data.get("files_included") or [])
@@ -2765,6 +2767,12 @@ def _register_planning_commands(sub: argparse._SubParsersAction) -> None:
     plan.add_argument("task", help="Task description")
     plan.add_argument("--repo", default=".", help="Repository path")
     plan.add_argument(
+        "--changed",
+        nargs="*",
+        metavar="PATH",
+        help="Changed file paths to target; boosts them and their import-graph neighbours in ranking.",
+    )
+    plan.add_argument(
         "--workspace", help="Workspace TOML describing multiple local repositories/packages."
     )
     plan.add_argument("--out-prefix", help="Output file prefix for JSON/Markdown")
@@ -2977,6 +2985,12 @@ def _register_packing_commands(sub: argparse._SubParsersAction) -> None:
             "Compression profile: 'max' packs tighter representations. "
             "Overrides [compression] profile."
         ),
+    )
+    pack.add_argument(
+        "--changed",
+        nargs="*",
+        metavar="PATH",
+        help="Changed file paths to target; boosts them and their import-graph neighbours in ranking.",
     )
     pack.set_defaults(func=cmd_pack)
 

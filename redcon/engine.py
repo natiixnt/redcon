@@ -174,6 +174,7 @@ class RedconEngine:
         repo: str | Path = ".",
         workspace: str | Path | None = None,
         top_files: int | None = None,
+        changed_files: list[str] | None = None,
         config_path: str | Path | None = None,
     ) -> dict[str, Any]:
         """Rank repository or workspace files relevant to a task."""
@@ -199,6 +200,7 @@ class RedconEngine:
                 config=workspace_definition.config,
                 telemetry_sink=self._telemetry_sink,
                 workspace=workspace_definition,
+                changed_files=changed_files,
             )
             logger.info("plan: done - task=%r", task)
             return result
@@ -211,6 +213,7 @@ class RedconEngine:
             top_n=effective_top_files,
             config=cfg,
             telemetry_sink=self._telemetry_sink,
+            changed_files=changed_files,
         )
         logger.info("plan: done - task=%r", task)
         return result
@@ -319,6 +322,7 @@ class RedconEngine:
         config_path: str | Path | None = None,
         timeout: int = 120,
         compression_profile: str | None = None,
+        changed_files: list[str] | None = None,
     ) -> dict[str, Any]:
         """Build compressed context under token and file budgets.
 
@@ -359,6 +363,7 @@ class RedconEngine:
                     telemetry_sink=self._telemetry_sink,
                     workspace=workspace_definition,
                     compression_profile=compression_profile,
+                    changed_files=changed_files,
                 )
                 result = as_json_dict(report)
             else:
@@ -372,6 +377,7 @@ class RedconEngine:
                     config=cfg,
                     telemetry_sink=self._telemetry_sink,
                     compression_profile=compression_profile,
+                    changed_files=changed_files,
                 )
                 result = as_json_dict(report)
 

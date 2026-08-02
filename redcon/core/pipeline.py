@@ -98,6 +98,7 @@ def run_plan(
     telemetry_sink: TelemetrySink | None = None,
     workspace: WorkspaceDefinition | None = None,
     plugins: ResolvedPlugins | None = None,
+    changed_files: list[str] | None = None,
 ) -> dict:
     """Run plan command pipeline and return serializable payload."""
 
@@ -126,7 +127,9 @@ def run_plan(
         files = run_scan_stage(repo, prepared_cfg)
         scanned_repos = []
     telemetry.emit("scan_completed", scanned_files=len(files), scanned_repos=len(scanned_repos))
-    ranked = run_score_stage(task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins)
+    ranked = run_score_stage(
+        task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins, changed_files=changed_files
+    )
     telemetry.emit(
         "scoring_completed",
         scanned_files=len(files),
@@ -379,6 +382,7 @@ def run_pack(
     plugins: ResolvedPlugins | None = None,
     record_history: bool = True,
     compression_profile: str | None = None,
+    changed_files: list[str] | None = None,
 ) -> RunReport:
     """Run pack command pipeline and return typed run report."""
 
@@ -428,7 +432,9 @@ def run_pack(
         scan_summary = scan_result.summary
         scanned_repos = []
     telemetry.emit("scan_completed", scanned_files=len(files), scanned_repos=len(scanned_repos))
-    ranked = run_score_stage(task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins)
+    ranked = run_score_stage(
+        task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins, changed_files=changed_files
+    )
     ranked_count = len(ranked)
     telemetry.emit(
         "scoring_completed",
