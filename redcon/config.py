@@ -83,6 +83,11 @@ class ScoreSettings:
     # (most recent commit gets the full boost, older ones decay linearly).
     git_recent_boost: float = 1.5
     git_recent_commits: int = 10
+    # Files named explicitly as changed (--changed) and their one-hop
+    # import-graph neighbours get a deterministic boost so a task scoped to a
+    # diff surfaces the files it touches. Neighbours get the smaller boost.
+    changed_file_boost: float = 3.0
+    changed_neighbor_boost: float = 1.0
     # Pull a file's test/source counterpart along when its pair scores well
     # (foo.py <-> test_foo.py, foo.ts <-> foo.test.ts, ...).
     test_pair_boost: float = 2.0
@@ -498,6 +503,10 @@ def _apply_score_overrides(settings: ScoreSettings, data: Mapping[str, Any]) -> 
         settings.git_recent_boost = float(data["git_recent_boost"])
     if "git_recent_commits" in data:
         settings.git_recent_commits = int(data["git_recent_commits"])
+    if "changed_file_boost" in data:
+        settings.changed_file_boost = float(data["changed_file_boost"])
+    if "changed_neighbor_boost" in data:
+        settings.changed_neighbor_boost = float(data["changed_neighbor_boost"])
     if "test_pair_boost" in data:
         settings.test_pair_boost = float(data["test_pair_boost"])
     if "code_extension_bonus" in data:

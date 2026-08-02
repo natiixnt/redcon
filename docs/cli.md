@@ -47,6 +47,11 @@ Print shell completion for bash, zsh or fish.
 ### `redcon plan <task> --repo <path>`
 Rank relevant files for a natural-language task.
 
+`--changed <path> ...` (on `plan` and `pack`) targets a diff: the named files
+and their one-hop import-graph neighbours get a deterministic ranking boost, so
+the files a task touches surface even when keyword overlap is weak. Tune with
+`[score] changed_file_boost` and `changed_neighbor_boost`.
+
 ### `redcon plan <task> --workspace <workspace.toml>`
 Rank relevant files across multiple local repositories or monorepo packages.
 

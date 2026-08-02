@@ -232,6 +232,7 @@ def run_score_stage(
     config: RedconConfig,
     repo: Path | None = None,
     plugins: ResolvedPlugins | None = None,
+    changed_files: list[str] | None = None,
 ) -> list[RankedFile]:
     """Rank scanned files by deterministic relevance score."""
 
@@ -252,6 +253,8 @@ def run_score_stage(
         recent = _get_git_recent_paths(repo, config.score.git_recent_commits)
         if recent:
             scorer_options["recent_paths"] = recent
+    if changed_files:
+        scorer_options["changed_paths"] = {str(p) for p in changed_files if str(p).strip()}
     return resolved.scorer.score(
         task=task,
         files=files,

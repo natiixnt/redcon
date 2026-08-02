@@ -36,6 +36,7 @@ def _builtin_relevance_score(
         similarity=options.get("task_similarity"),
         dirty_paths=options.get("dirty_paths"),
         recent_paths=options.get("recent_paths"),
+        changed_paths=options.get("changed_paths"),
     )
 
 

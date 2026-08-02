@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--changed PATH ...` on `plan` and `pack`: boost the named files and their
+  import-graph neighbours in ranking, so a task scoped to a diff surfaces the
+  files it touches. Deterministic.
+
 ### Changed
 
 - Max compression profile is now free for everyone.
