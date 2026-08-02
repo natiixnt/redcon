@@ -78,7 +78,7 @@ Open follow-ups (minor, not blocking):
 
 ## What is next
 
-The progressive-packer arc above is complete. Current direction is tracked in
-the launch backlog and issues, not in this document. The near-term 1.12.0 work
-is the free max-compression profile, changed-file targeting for `plan` and
-`pack`, and a per-file scoring breakdown in `plan` output and `run.json`.
+The progressive-packer arc above is complete; this document is no longer the
+source of truth for future work. Near-term work (tracked in the launch
+backlog): the free max-compression profile, changed-file targeting for `plan`
+and `pack`, and a per-file scoring breakdown in `plan` output and `run.json`.
