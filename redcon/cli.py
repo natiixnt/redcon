@@ -14,6 +14,11 @@ from pathlib import Path
 from redcon import __version__ as _redcon_version
 from redcon.agents.middleware import RedconMiddleware
 from redcon.config import RedconConfig, load_config, validate_config
+from redcon.core.html_report import (
+    render_benchmark_html,
+    render_diff_html,
+    render_run_html,
+)
 from redcon.core.policy import (
     default_strict_policy,
     load_policy,
@@ -800,6 +805,10 @@ def cmd_pack(args: argparse.Namespace) -> int:
 
     _qprint(args, f"Wrote run JSON: {json_path}")
     _qprint(args, f"Wrote run Markdown: {md_path}")
+    if getattr(args, "html", False):
+        html_path = Path(f"{base}.html")
+        html_path.write_text(render_run_html(data), encoding="utf-8")
+        _qprint(args, f"Wrote run HTML: {html_path}")
     _qprint(
         args,
         "Budget: "
@@ -1190,6 +1199,10 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
     print(f"Wrote diff JSON: {json_path}")
     print(f"Wrote diff Markdown: {md_path}")
+    if getattr(args, "html", False):
+        html_path = Path(f"{base}.html")
+        html_path.write_text(render_diff_html(diff_data), encoding="utf-8")
+        print(f"Wrote diff HTML: {html_path}")
     return 0
 
 
@@ -1322,6 +1335,11 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     write_json(json_path, benchmark_data)
     md_path.write_text(markdown, encoding="utf-8")
 
+    html_path = None
+    if getattr(args, "html", False):
+        html_path = Path(f"{base}.html")
+        html_path.write_text(render_benchmark_html(benchmark_data), encoding="utf-8")
+
     csv_path = None
     if args.csv:
         from redcon.core.benchmark import benchmark_csv_rows
@@ -1377,6 +1395,8 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     print(f"Wrote benchmark Markdown: {md_path}")
     if csv_path is not None:
         print(f"Wrote benchmark CSV: {csv_path}")
+    if html_path is not None:
+        print(f"Wrote benchmark HTML: {html_path}")
     return 0
 
 
@@ -3018,6 +3038,11 @@ def _register_packing_commands(sub: argparse._SubParsersAction) -> None:
     )
     pack.add_argument("--out-prefix", help="Output file prefix for JSON/Markdown", default="run")
     pack.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write a self-contained HTML report alongside the JSON/Markdown.",
+    )
+    pack.add_argument(
         "--strict",
         action="store_true",
         help="Enable strict policy enforcement (non-zero exit on violations).",
@@ -3136,6 +3161,11 @@ def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
     diff.add_argument("old_run_json", help="Path to older run JSON")
     diff.add_argument("new_run_json", help="Path to newer run JSON")
     diff.add_argument("--out-prefix", help="Output prefix for diff JSON/Markdown")
+    diff.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write a self-contained HTML report alongside the JSON/Markdown.",
+    )
     diff.set_defaults(func=cmd_diff)
 
     validate = sub.add_parser(
@@ -3197,6 +3227,11 @@ def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
         "--config", help="Optional path to config TOML (default: <repo>/redcon.toml)."
     )
     benchmark.add_argument("--out-prefix", help="Output file prefix for benchmark JSON/Markdown")
+    benchmark.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write a self-contained HTML report alongside the JSON/Markdown.",
+    )
     benchmark.add_argument(
         "--baseline",
         help="Path to an earlier benchmark JSON to compare against; adds a delta summary.",

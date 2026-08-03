@@ -75,6 +75,14 @@ Plan the same lifecycle-aware workflow across multiple local repositories or mon
 ### `redcon pack <task> --repo <path> [--max-tokens N] [--top-files N]`
 Build compressed context package and write `run.json` + `run.md` by default.
 
+`--html` additionally writes a self-contained `run.html`: one file with inline
+CSS and no external requests, readable as dark text on a light background when
+printed. It carries the run's budget, files, ranked files with their
+`score_breakdown` signals and `[role]` tags, and the `prompt_cache_key`. The
+JSON and Markdown outputs are unchanged. `redcon diff` and `redcon benchmark`
+accept the same `--html` flag (the benchmark HTML includes `baseline_comparison`
+when `--baseline` is given).
+
 `--compression-profile max` switches to the max-compression profile: tighter
 tier thresholds that pack roughly 20% fewer input tokens at the same budget and
 reported quality risk (measured on this repository). It can also be set
