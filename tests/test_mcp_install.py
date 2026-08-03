@@ -240,6 +240,90 @@ def test_installed_path_reports_junie(tmp_path: Path, monkeypatch: pytest.Monkey
     assert installed_path("junie", tmp_path) == tmp_path / ".junie" / "mcp" / "mcp.json"
 
 
+def test_install_cline_writes_globalstorage_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Cline reads a standard mcpServers entry from its VS Code global storage."""
+    home = tmp_path / "home"
+    monkeypatch.setattr("pathlib.Path.home", lambda: home)
+    monkeypatch.setattr("redcon.mcp.install.sys.platform", "linux")
+
+    result = install_for_target("cline", tmp_path)
+    assert result["status"] == "installed"
+    settings = (
+        home
+        / ".config"
+        / "Code"
+        / "User"
+        / "globalStorage"
+        / "saoudrizwan.claude-dev"
+        / "settings"
+        / "cline_mcp_settings.json"
+    )
+    data = json.loads(settings.read_text())
+    assert data["mcpServers"]["redcon"] == REDCON_ENTRY
+
+
+def test_cline_settings_path_is_platform_specific(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """The Cline settings path follows the VS Code layout for each OS."""
+    from redcon.mcp.install import _cline_settings_path
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("redcon.mcp.install.sys.platform", "darwin")
+    assert "Application Support" in str(_cline_settings_path())
+    monkeypatch.setattr("redcon.mcp.install.sys.platform", "linux")
+    assert str(_cline_settings_path()).endswith(
+        "/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    )
+
+
+def test_install_zed_uses_context_servers_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Zed config uses a 'context_servers' key with an env map."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    result = install_for_target("zed", tmp_path)
+    assert result["status"] == "installed"
+    data = json.loads((tmp_path / "home" / ".config" / "zed" / "settings.json").read_text())
+    assert "mcpServers" not in data
+    entry = data["context_servers"]["redcon"]
+    assert entry["command"] == "redcon"
+    assert entry["args"] == ["mcp", "serve"]
+    assert entry["env"] == {}
+
+
+def test_install_zed_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A second Zed install is a no-op."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    install_for_target("zed", tmp_path)
+    again = install_for_target("zed", tmp_path)
+    assert again["status"] == "up_to_date"
+
+
+def test_uninstall_cline_and_zed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Uninstall strips the redcon entry from Cline and Zed configs."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    monkeypatch.setattr("redcon.mcp.install.sys.platform", "linux")
+    for target in ("cline", "zed"):
+        install_for_target(target, tmp_path)
+        result = uninstall_for_target(target, tmp_path)
+        assert result["status"] == "removed"
+        assert installed_path(target, tmp_path) is None
+
+
+def test_detect_targets_finds_cline_and_zed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A present Cline extension dir and ~/.config/zed add both targets."""
+    home = tmp_path / "home"
+    monkeypatch.setattr("pathlib.Path.home", lambda: home)
+    monkeypatch.setattr("redcon.mcp.install.sys.platform", "linux")
+    (home / ".config" / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev").mkdir(
+        parents=True
+    )
+    (home / ".config" / "zed").mkdir(parents=True)
+
+    targets = detect_targets(tmp_path)
+    assert "cline" in targets
+    assert "zed" in targets
+
+
 def test_detect_targets_defaults_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Without detected agents only the default trio is targeted."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")

@@ -29,9 +29,10 @@ redcon mcp serve        # run the stdio server (agents invoke this)
 `install` writes the appropriate config for each detected agent:
 Claude Code (`.mcp.json`), Cursor (`.cursor/mcp.json`), Windsurf,
 VS Code (`.vscode/mcp.json`), Codex (`~/.codex/config.toml`),
-Gemini (`~/.gemini/settings.json`) and Junie
-(`.junie/mcp/mcp.json`). Restart the IDE or agent session
-after installing so it picks up the new tools.
+Gemini (`~/.gemini/settings.json`), Junie (`.junie/mcp/mcp.json`), Cline
+(its VS Code global-storage `cline_mcp_settings.json`) and Zed
+(`~/.config/zed/settings.json`, under the `context_servers` key). Restart
+the IDE or agent session after installing so it picks up the new tools.
 
 ### Tools exposed
 

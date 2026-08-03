@@ -1,9 +1,10 @@
 """
 Auto-install Redcon MCP server config into supported AI agents.
 
-Covers Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Gemini CLI and
-Junie CLI. JSON based agents get the redcon entry merged into their MCP config file
-(VS Code uses a "servers" key and a stdio type marker instead of the
+Covers Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Gemini CLI,
+Junie CLI, Cline and Zed. JSON based agents get the redcon entry merged
+into their MCP config file (VS Code uses a "servers" key and a stdio type
+marker, and Zed uses a "context_servers" key with an env map, instead of the
 "mcpServers" shape the others share). Codex CLI is configured through
 TOML, where the redcon section is appended or removed textually so the
 rest of the user's config is never rewritten.
@@ -14,6 +15,8 @@ All writes are idempotent and preserve existing entries.
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +28,10 @@ REDCON_ENTRY: dict[str, Any] = {
 # VS Code's .vscode/mcp.json schema wants an explicit transport type.
 _VSCODE_ENTRY: dict[str, Any] = {"type": "stdio", **REDCON_ENTRY}
 
+# Zed's context_servers entry follows its documented custom-server shape,
+# which carries an explicit (here empty) env map.
+_ZED_ENTRY: dict[str, Any] = {**REDCON_ENTRY, "env": {}}
+
 _CODEX_HEADER = "[mcp_servers.redcon]"
 _CODEX_SECTION = '[mcp_servers.redcon]\ncommand = "redcon"\nargs = ["mcp", "serve"]\n'
 
@@ -34,7 +41,7 @@ DEFAULT_TARGETS = ["claude", "cursor", "windsurf"]
 # Targets registered only when their config location already exists, so
 # `redcon init` does not scatter config for agents the user never
 # installed. Explicitly naming the target still forces the install.
-DETECTED_TARGETS = ["vscode", "codex", "gemini", "junie"]
+DETECTED_TARGETS = ["vscode", "codex", "gemini", "junie", "cline", "zed"]
 
 ALL_TARGETS = DEFAULT_TARGETS + DETECTED_TARGETS
 
@@ -45,12 +52,46 @@ _SERVERS_KEY: dict[str, str] = {
     "windsurf": "mcpServers",
     "gemini": "mcpServers",
     "junie": "mcpServers",
+    "cline": "mcpServers",
     "vscode": "servers",
+    "zed": "context_servers",
 }
 
 
 def _entry_for(target: str) -> dict[str, Any]:
-    return dict(_VSCODE_ENTRY) if target == "vscode" else dict(REDCON_ENTRY)
+    if target == "vscode":
+        return dict(_VSCODE_ENTRY)
+    if target == "zed":
+        return {**REDCON_ENTRY, "env": {}}
+    return dict(REDCON_ENTRY)
+
+
+def _vscode_user_dir() -> Path:
+    """Locate VS Code's per-user config directory across platforms.
+
+    Cline stores its MCP settings under VS Code global storage, so the
+    base path differs by operating system rather than living under a
+    single home-relative location like the other agents.
+    """
+    home = Path.home()
+    if sys.platform == "darwin":
+        return home / "Library" / "Application Support" / "Code" / "User"
+    if sys.platform.startswith("win"):
+        appdata = os.environ.get("APPDATA")
+        base = Path(appdata) if appdata else home / "AppData" / "Roaming"
+        return base / "Code" / "User"
+    return home / ".config" / "Code" / "User"
+
+
+def _cline_settings_path() -> Path:
+    """Cline's MCP settings file inside VS Code global storage."""
+    return (
+        _vscode_user_dir()
+        / "globalStorage"
+        / "saoudrizwan.claude-dev"
+        / "settings"
+        / "cline_mcp_settings.json"
+    )
 
 
 def _target_paths(project_root: Path) -> dict[str, list[Path]]:
@@ -64,6 +105,8 @@ def _target_paths(project_root: Path) -> dict[str, list[Path]]:
     Codex CLI uses ~/.codex/config.toml.
     Gemini CLI uses ~/.gemini/settings.json.
     Junie CLI uses project .junie/mcp/mcp.json or global ~/.junie/mcp/mcp.json.
+    Cline uses its VS Code global-storage cline_mcp_settings.json.
+    Zed uses ~/.config/zed/settings.json.
     """
     home = Path.home()
     return {
@@ -80,6 +123,8 @@ def _target_paths(project_root: Path) -> dict[str, list[Path]]:
             project_root / ".junie" / "mcp" / "mcp.json",
             home / ".junie" / "mcp" / "mcp.json",
         ],
+        "cline": [_cline_settings_path()],
+        "zed": [home / ".config" / "zed" / "settings.json"],
     }
 
 
@@ -95,6 +140,10 @@ def detect_targets(project_root: Path) -> list[str]:
         targets.append("gemini")
     if (project_root / ".junie").is_dir() or (home / ".junie").is_dir():
         targets.append("junie")
+    if _cline_settings_path().parent.parent.is_dir():
+        targets.append("cline")
+    if (home / ".config" / "zed").is_dir():
+        targets.append("zed")
     return targets
 
 
