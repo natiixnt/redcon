@@ -8,11 +8,22 @@ MCP server for detected agents (Claude Code, Cursor, Windsurf, VS Code,
 Codex, Gemini), installs the Claude Code hook and updates `AGENTS.md`.
 Idempotent; safe to re-run.
 
-### `redcon doctor`
-Environment diagnostics: Python version, optional extras (`tokenizers`,
-`redis`, `gateway`, `mcp`, `symbols`, `ast_grep`), MCP registration state,
-config validity, cache directory, git and disk space. Exit code reflects
-failures, so it works as a CI gate too.
+### `redcon doctor [--repo <path>] [--json]`
+Environment diagnostics, all read-only and offline. Reports Python and platform;
+optional extras (`tokenizers`, `redis`, `gateway`, `mcp`, `symbols`, `ast_grep`,
+`pro`, `validate`, `heavy_compression`) with install hints; config parse and
+validation; the cache backend, directory writability, entry count and TTL; scan
+index presence, format version and file count; the license tier and status
+(never the key or its path); MCP client registration; and git and disk. Each
+line is `[ok] / [--] / [!!] / [XX] name: detail`; the exit code is non-zero only
+when a check fails, so it works as a CI gate. `--json` emits the same checks as a
+machine-readable report.
+
+```
+  [ok] cache: backend=local_file, 42 entries, ttl=86400s
+  [--] scan_index: Present (sqlite), format v3, 128 files
+  [--] license: tier=free, status=free
+```
 
 ### `redcon cache prune [--repo <path>] [--dry-run] [--json]`
 Remove stale entries from the local summary cache: entries past

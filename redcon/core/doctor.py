@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import platform
 import shutil
 import subprocess
@@ -374,6 +375,128 @@ def _check_secret_exposure(repo: Path) -> CheckResult:
     )
 
 
+def _check_license(repo: Path) -> CheckResult:
+    """Report the resolved license tier and status. Never prints the key or its path."""
+    try:
+        from redcon.entitlements import load_entitlement
+
+        entitlement = load_entitlement(repo)
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never raise
+        return CheckResult(
+            name="license", status="info", message=f"Could not resolve license: {exc}"
+        )
+    return CheckResult(
+        name="license",
+        status="info",
+        message=f"tier={entitlement.tier}, status={entitlement.status}",
+        detail=(entitlement.hint or "").strip(),
+    )
+
+
+def _check_scan_index(repo: Path) -> CheckResult:
+    """Report whether a scan index exists, its format version and file count."""
+    from redcon.scanners.incremental import (
+        INDEX_FORMAT_VERSION,
+        SCAN_INDEX_DB_FILE,
+        load_scan_index,
+    )
+    from redcon.schemas.models import SCAN_INDEX_FILE
+
+    db_path = repo / SCAN_INDEX_DB_FILE
+    json_path = repo / SCAN_INDEX_FILE
+
+    if db_path.exists():
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            try:
+                count = conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+            finally:
+                conn.close()
+        except Exception as exc:  # noqa: BLE001
+            return CheckResult(
+                name="scan_index",
+                status="info",
+                message=f"Scan index present but unreadable: {exc}",
+            )
+        return CheckResult(
+            name="scan_index",
+            status="ok",
+            message=f"Present (sqlite), format v{INDEX_FORMAT_VERSION}, {count} files",
+        )
+
+    if json_path.exists():
+        try:
+            data = load_scan_index(json_path)
+        except Exception as exc:  # noqa: BLE001
+            return CheckResult(
+                name="scan_index",
+                status="info",
+                message=f"Scan index present but unreadable: {exc}",
+            )
+        version = int(data.get("version", 0) or 0)
+        count = len(data.get("entries", []) or [])
+        if version != INDEX_FORMAT_VERSION:
+            return CheckResult(
+                name="scan_index",
+                status="info",
+                message=f"Format v{version} (expected v{INDEX_FORMAT_VERSION}); will rebuild on next run",
+                detail=f"{count} files",
+            )
+        return CheckResult(
+            name="scan_index",
+            status="ok",
+            message=f"Present (json), format v{version}, {count} files",
+        )
+
+    return CheckResult(
+        name="scan_index", status="info", message="No scan index yet - built on first run"
+    )
+
+
+def _check_cache(repo: Path) -> CheckResult:
+    """Report the cache backend, TTL and entry count, and probe write access."""
+    from redcon.config import load_config
+
+    cfg = load_config(repo)
+    backend = cfg.cache.backend
+    ttl = cfg.cache.local_ttl_seconds
+    ttl_desc = "disabled" if ttl <= 0 else f"{ttl}s"
+    cache_path = repo / cfg.cache.cache_file
+    cache_dir = cache_path.parent
+
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        probe = cache_dir / ".redcon-doctor-probe"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        return CheckResult(
+            name="cache",
+            status="fail",
+            message=f"Cache directory is not writable: {cache_dir}",
+            detail=str(exc),
+        )
+
+    entries = 0
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            for store in ("summaries", "fragments", "slices"):
+                if isinstance(data.get(store), dict):
+                    entries += len(data[store])
+        except (OSError, json.JSONDecodeError, ValueError):
+            entries = 0
+
+    return CheckResult(
+        name="cache",
+        status="ok",
+        message=f"backend={backend}, {entries} entries, ttl={ttl_desc}",
+        detail=f"directory: {cache_dir}",
+    )
+
+
 def run_doctor(repo: Path) -> DoctorReport:
     """Run all diagnostic checks and return a report."""
     try:
@@ -397,11 +520,17 @@ def run_doctor(repo: Path) -> DoctorReport:
         _check_optional_dep("mcp", "mcp", "mcp"),
         _check_optional_dep("tree_sitter", "tree_sitter", "symbols"),
         _check_optional_dep("ast_grep", "ast_grep_py", "ast_grep"),
+        _check_optional_dep("cryptography", "cryptography", "pro"),
+        _check_optional_dep("jsonschema", "jsonschema", "validate"),
+        _check_optional_dep("llmlingua", "llmlingua", "heavy_compression"),
         _check_mcp_registration(repo),
         _check_secret_exposure(repo),
         _check_config(repo),
         _check_redcon_toml(repo),
         _check_cache_dir(repo),
+        _check_cache(repo),
+        _check_scan_index(repo),
+        _check_license(repo),
         _check_git_repo(repo),
         _check_git_available(),
         _check_disk_space(repo),
