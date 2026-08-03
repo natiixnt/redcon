@@ -38,6 +38,43 @@ duplicate_hash_cache_enabled = true
 
 `cache_hits` remains as a compatibility field for existing consumers.
 
+### TTL freshness
+
+The local cache does not expire entries by default, so behavior is unchanged
+unless you opt in. Set a positive `local_ttl_seconds` under `[cache]` to treat
+entries older than that many seconds as stale (a cache miss), mirroring the
+Redis backend's `redis_ttl_seconds`. `0` disables expiry.
+
+```toml
+[cache]
+backend = "local_file"
+local_ttl_seconds = 86400   # expire local cache entries after 24 hours; 0 = never
+```
+
+Entries written before TTL was enabled have no recorded timestamp and are
+treated as fresh, so turning TTL on never retroactively drops existing entries.
+
+### Pruning
+
+`redcon cache prune` removes stale entries from the local cache:
+
+```bash
+redcon cache prune --repo .            # remove expired and orphaned entries
+redcon cache prune --repo . --dry-run  # report what would be removed, change nothing
+redcon cache prune --repo . --json     # machine-readable summary
+```
+
+It removes two kinds of entries:
+
+- **Expired** - older than `local_ttl_seconds` (only when TTL is enabled).
+- **Orphaned** - the file the entry was cached for no longer exists in the repo.
+  A wrong or empty repository path never removes orphaned entries, so prune
+  cannot wipe the whole cache by mistake.
+
+The command prints how many entries were removed and how many bytes were freed
+(`entries_removed`, `bytes_freed`, `expired`, `orphaned`). Running it on a cache
+with nothing expired or orphaned is a no-op and leaves the file untouched.
+
 ## Redis Shared Cache Cluster
 
 The `redis` backend enables multiple agents or CI runs to share cached summaries, context slices, and compressed fragments across machines.

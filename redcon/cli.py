@@ -2727,6 +2727,41 @@ def cmd_cmd_quality(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cache(args: argparse.Namespace) -> int:
+    repo_path = Path(args.repo).resolve()
+    if not repo_path.is_dir():
+        print(f"Error: repo path not found: {repo_path}", file=sys.stderr)
+        return 2
+
+    from redcon.cache.backends import LocalFileSummaryCacheBackend
+    from redcon.scanners.repository import scan_repository
+
+    cfg = load_config(repo_path)
+    backend = LocalFileSummaryCacheBackend(
+        repo_path=repo_path,
+        cache_file=cfg.cache.cache_file,
+        ttl_seconds=cfg.cache.local_ttl_seconds,
+    )
+    live_paths = {record.path for record in scan_repository(repo_path)}
+    summary = backend.prune(live_paths=live_paths, dry_run=args.dry_run)
+
+    if args.json:
+        print(
+            _json_mod.dumps({"repo": str(repo_path), "dry_run": args.dry_run, **summary}, indent=2)
+        )
+        return 0
+
+    verb = "Would remove" if args.dry_run else "Removed"
+    print(
+        f"{verb} {summary['entries_removed']} cache entries "
+        f"({summary['expired']} expired, {summary['orphaned']} orphaned), "
+        f"freeing {summary['bytes_freed']} bytes."
+    )
+    if cfg.cache.local_ttl_seconds <= 0 and summary["expired"] == 0:
+        print("Note: [cache].local_ttl_seconds is 0, so entries do not expire by age.")
+    return 0
+
+
 def _register_setup_commands(sub: argparse._SubParsersAction) -> None:
     doctor = sub.add_parser(
         "doctor", help="Check environment health, dependencies, and configuration"
@@ -2747,6 +2782,24 @@ def _register_setup_commands(sub: argparse._SubParsersAction) -> None:
         help="Print raw JSON to stdout (shorthand for --format json).",
     )
     doctor.set_defaults(func=cmd_doctor)
+
+    cache = sub.add_parser("cache", help="Maintain the local summary cache")
+    cache.add_argument("action", choices=["prune"], help="Cache maintenance action to run")
+    cache.add_argument("--repo", default=".", help="Repository path (default: current directory).")
+    cache.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=False,
+        help="Show what would be removed without modifying the cache.",
+    )
+    cache.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Print a machine-readable JSON summary.",
+    )
+    cache.set_defaults(func=cmd_cache)
 
     license_parser = sub.add_parser(
         "license", help="Show, activate, or remove your redcon Pro license"

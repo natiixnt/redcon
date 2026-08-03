@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
 import zlib
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
@@ -244,16 +245,35 @@ def _cache_file_lock(lock_path: Path):
         handle.close()
 
 
+def _empty_local_cache() -> dict[str, Any]:
+    return {
+        "summaries": {},
+        "fragments": {},
+        "slices": {},
+        "timestamps": {"summaries": {}, "fragments": {}, "slices": {}},
+    }
+
+
 class LocalFileSummaryCacheBackend(SummaryCacheBackend):
     """Persistent local summary cache backed by a JSON file."""
 
     backend_name = "local_file"
 
-    def __init__(self, repo_path: Path, cache_file: str = CACHE_FILE, enabled: bool = True) -> None:
+    _STORES = ("summaries", "fragments", "slices")
+
+    def __init__(
+        self,
+        repo_path: Path,
+        cache_file: str = CACHE_FILE,
+        enabled: bool = True,
+        ttl_seconds: int = 0,
+    ) -> None:
         super().__init__(enabled=enabled)
         self.repo_path = repo_path
         self.cache_path = repo_path / cache_file
-        self._data: dict[str, Any] = {"summaries": {}, "fragments": {}, "slices": {}}
+        # 0 (or negative) disables expiry, matching the Redis convention.
+        self.ttl_seconds = ttl_seconds
+        self._data: dict[str, Any] = _empty_local_cache()
         self._load()
 
     def _load(self) -> None:
@@ -264,13 +284,12 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
         try:
             raw_data = json.loads(self.cache_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            self._data = {"summaries": {}, "fragments": {}, "slices": {}}
+            self._data = _empty_local_cache()
             return
-        self._data = (
-            raw_data
-            if isinstance(raw_data, dict)
-            else {"summaries": {}, "fragments": {}, "slices": {}}
-        )
+        self._data = raw_data if isinstance(raw_data, dict) else _empty_local_cache()
+
+    def _now(self) -> float:
+        return time.time()
 
     def _store(self, name: str) -> dict[str, str]:
         raw = self._data.get(name)
@@ -280,53 +299,130 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
         self._data[name] = summaries
         return summaries
 
+    def _timestamps(self, name: str) -> dict[str, float]:
+        root = self._data.get("timestamps")
+        if not isinstance(root, dict):
+            root = {}
+            self._data["timestamps"] = root
+        store_ts = root.get(name)
+        if not isinstance(store_ts, dict):
+            store_ts = {}
+            root[name] = store_ts
+        return store_ts
+
+    def _touch(self, name: str, key: str) -> None:
+        self._timestamps(name)[key] = self._now()
+
+    def _is_expired(self, name: str, key: str) -> bool:
+        # A missing timestamp (entry written before TTL was used) is treated as
+        # fresh, so enabling TTL never retroactively drops existing entries.
+        if self.ttl_seconds <= 0:
+            return False
+        ts = self._timestamps(name).get(key)
+        return ts is not None and (self._now() - ts) > self.ttl_seconds
+
     def _get_summary(self, key: str) -> str | None:
+        if self._is_expired("summaries", key):
+            return None
         summaries = self._store("summaries")
-        if key in summaries:
-            return str(summaries[key])
-        return None
+        return str(summaries[key]) if key in summaries else None
 
     def _put_summary(self, key: str, summary: str) -> bool:
         summaries = self._store("summaries")
         is_new_key = key not in summaries
         summaries[key] = summary
+        self._touch("summaries", key)
         return is_new_key
 
     def _get_fragment(self, key: str) -> str | None:
+        if self._is_expired("fragments", key):
+            return None
         fragments = self._store("fragments")
-        if key in fragments:
-            return str(fragments[key])
-        return None
+        return str(fragments[key]) if key in fragments else None
 
     def _put_fragment(self, key: str, reference: str) -> bool:
         fragments = self._store("fragments")
         is_new_key = key not in fragments
         fragments[key] = reference
+        self._touch("fragments", key)
         return is_new_key
 
     def _get_slice(self, key: str) -> str | None:
+        if self._is_expired("slices", key):
+            return None
         slices = self._store("slices")
-        if key in slices:
-            return str(slices[key])
-        return None
+        return str(slices[key]) if key in slices else None
 
     def _put_slice(self, key: str, data: str) -> bool:
         slices = self._store("slices")
         is_new_key = key not in slices
         slices[key] = data
+        self._touch("slices", key)
         return is_new_key
 
     def _invalidate(self, key: str) -> bool:
         removed = False
-        for store_name in ("summaries", "fragments", "slices"):
+        for store_name in self._STORES:
             store = self._store(store_name)
             if key in store:
                 del store[key]
+                self._timestamps(store_name).pop(key, None)
                 removed = True
         return removed
 
     def _clear(self) -> None:
-        self._data = {"summaries": {}, "fragments": {}, "slices": {}}
+        self._data = _empty_local_cache()
+
+    def iter_entries(self):
+        """Yield (store, key, value) for every cached entry."""
+        for store_name in self._STORES:
+            for key, value in list(self._store(store_name).items()):
+                yield store_name, key, str(value)
+
+    def prune(self, *, live_paths: set[str] | None = None, dry_run: bool = False) -> dict[str, int]:
+        """Remove expired and orphaned entries and return a summary.
+
+        Expired = older than ``ttl_seconds`` (only when TTL is enabled).
+        Orphaned = the entry's referenced file path no longer appears among
+        ``live_paths`` (only applied when a non-empty ``live_paths`` is given, so
+        a wrong or empty repo path can never wipe the whole cache). Expired takes
+        precedence when an entry matches both.
+        """
+        now = self._now()
+        check_orphans = bool(live_paths)
+        to_remove: list[tuple[str, str]] = []
+        bytes_freed = 0
+        expired = 0
+        orphaned = 0
+        for store_name in self._STORES:
+            store = self._store(store_name)
+            timestamps = self._timestamps(store_name)
+            for key, value in list(store.items()):
+                is_expired = (
+                    self.ttl_seconds > 0
+                    and timestamps.get(key) is not None
+                    and (now - timestamps[key]) > self.ttl_seconds
+                )
+                is_orphaned = check_orphans and not any(path in key for path in live_paths)
+                if not (is_expired or is_orphaned):
+                    continue
+                to_remove.append((store_name, key))
+                bytes_freed += len(str(value).encode("utf-8"))
+                if is_expired:
+                    expired += 1
+                else:
+                    orphaned += 1
+        if not dry_run and to_remove:
+            for store_name, key in to_remove:
+                self._store(store_name).pop(key, None)
+                self._timestamps(store_name).pop(key, None)
+            self._write_current()
+        return {
+            "entries_removed": len(to_remove),
+            "bytes_freed": bytes_freed,
+            "expired": expired,
+            "orphaned": orphaned,
+        }
 
     def _merge_with_disk(self) -> dict[str, Any]:
         """Fold this process's in-memory entries into whatever is on disk now.
@@ -356,6 +452,21 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
             if isinstance(mem_store, dict):
                 combined.update(mem_store)  # in-memory wins per key
             merged[store] = combined
+        # Merge per-entry timestamps the same way so a concurrent writer's fresh
+        # timestamps are not discarded.
+        disk_ts = disk.get("timestamps") if isinstance(disk.get("timestamps"), dict) else {}
+        mem_ts = (
+            self._data.get("timestamps") if isinstance(self._data.get("timestamps"), dict) else {}
+        )
+        merged_ts: dict[str, dict[str, float]] = {}
+        for store in ("summaries", "fragments", "slices"):
+            combined_ts: dict[str, float] = {}
+            if isinstance(disk_ts.get(store), dict):
+                combined_ts.update(disk_ts[store])
+            if isinstance(mem_ts.get(store), dict):
+                combined_ts.update(mem_ts[store])
+            merged_ts[store] = combined_ts
+        merged["timestamps"] = merged_ts
         # Carry over any extra top-level keys this process holds (forward-compat).
         for key, value in self._data.items():
             merged.setdefault(key, value)
@@ -371,6 +482,24 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
                     json.dumps(merged, indent=2, sort_keys=True),
                 )
                 self._data = merged
+        except OSError:
+            return
+
+    def _write_current(self) -> None:
+        """Overwrite the cache file with the in-memory state, without merging.
+
+        The normal _save() unions with the on-disk copy so concurrent writers do
+        not clobber each other, but that union would resurrect the entries prune
+        just removed. Prune is authoritative maintenance, so it writes the
+        reduced state directly under the file lock.
+        """
+        lock_path = self.cache_path.with_name(self.cache_path.name + ".lock")
+        try:
+            with _cache_file_lock(lock_path):
+                atomic_write_text(
+                    self.cache_path,
+                    json.dumps(self._data, indent=2, sort_keys=True),
+                )
         except OSError:
             return
 
@@ -933,6 +1062,7 @@ def create_summary_cache_backend(
     backend: str = LocalFileSummaryCacheBackend.backend_name,
     cache_file: str = CACHE_FILE,
     enabled: bool = True,
+    local_ttl_seconds: int = 0,
     redis_url: str = "redis://localhost:6379/0",
     redis_namespace: str = "redcon",
     redis_ttl_seconds: int = 86400,
@@ -942,7 +1072,10 @@ def create_summary_cache_backend(
     backend_name = normalize_cache_backend_name(backend)
     if backend_name == LocalFileSummaryCacheBackend.backend_name:
         return LocalFileSummaryCacheBackend(
-            repo_path=repo_path, cache_file=cache_file, enabled=enabled
+            repo_path=repo_path,
+            cache_file=cache_file,
+            enabled=enabled,
+            ttl_seconds=local_ttl_seconds,
         )
     if backend_name == SQLiteSummaryCacheBackend.backend_name:
         return SQLiteSummaryCacheBackend(
