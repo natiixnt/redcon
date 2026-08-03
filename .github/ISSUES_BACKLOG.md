@@ -141,5 +141,5 @@ in place for provenance; nothing is removed when an item ships.
 - #14 Add CI recipes for changed-files and strict policy gates
 - #15 Improve import-graph test coverage for mixed Python/TS repos
 
-Of these, #5, #8 and #9 remain open or partial (see the Status lines above); the
-rest have shipped.
+Across the whole backlog, #5, #7, #8 and #9 remain open or partial (see the
+Status lines above); every other issue has shipped.
