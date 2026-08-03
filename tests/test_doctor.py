@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from redcon.core.doctor import _check_optional_dep, doctor_as_dict, run_doctor
+from redcon.core.doctor import (
+    _check_cache,
+    _check_license,
+    _check_optional_dep,
+    _check_scan_index,
+    doctor_as_dict,
+    run_doctor,
+)
 
 
 def _write(path: Path, content: str) -> None:
@@ -100,3 +107,54 @@ def test_doctor_reports_nonzero_on_failure(tmp_path: Path) -> None:
     _write(tmp_path / "redcon.toml", "[budget]\nmax_tokens = -1\n")
     report = run_doctor(tmp_path)
     assert report.failures > 0
+
+
+def test_doctor_includes_license_scan_index_and_cache(tmp_path: Path) -> None:
+    report = run_doctor(tmp_path)
+    names = {c.name for c in report.checks}
+    assert {"license", "scan_index", "cache"} <= names
+    # The new named extras are checked too.
+    assert {"cryptography", "jsonschema", "llmlingua"} <= names
+
+
+def test_license_without_key_is_free_info(tmp_path: Path) -> None:
+    result = _check_license(tmp_path)
+    assert result.status == "info"  # a license status is never a failure
+    assert "tier=free" in result.message
+    assert "status=free" in result.message
+    # The token and key-file path must never appear in the output.
+    blob = f"{result.message} {result.detail}"
+    assert "token" not in blob.lower()
+    assert ".redcon/license" not in blob
+
+
+def test_scan_index_absent_is_info(tmp_path: Path) -> None:
+    result = _check_scan_index(tmp_path)
+    assert result.status == "info"
+    assert "No scan index" in result.message
+
+
+def test_cache_check_reports_backend_and_ttl(tmp_path: Path) -> None:
+    _write(tmp_path / "redcon.toml", "[cache]\nlocal_ttl_seconds = 3600\n")
+    result = _check_cache(tmp_path)
+    assert result.status == "ok"
+    assert "backend=local_file" in result.message
+    assert "ttl=3600s" in result.message
+
+
+def test_cache_check_fails_on_unwritable_directory(tmp_path: Path) -> None:
+    # Point the cache at a subdirectory that cannot be created because a file
+    # occupies its path, so the write probe fails deterministically.
+    _write(tmp_path / "redcon.toml", '[cache]\ncache_file = "blocked/cache.json"\n')
+    (tmp_path / "blocked").write_text("not a directory", encoding="utf-8")
+    result = _check_cache(tmp_path)
+    assert result.status == "fail"
+    assert "not writable" in result.message
+
+
+def test_doctor_json_matches_exit_code(tmp_path: Path) -> None:
+    report = run_doctor(tmp_path)
+    data = doctor_as_dict(report)
+    fails = sum(1 for c in data["checks"] if c["status"] == "fail")
+    # A clean tmp repo has no failures, and the report agrees.
+    assert fails == report.failures == 0
