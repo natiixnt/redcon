@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-08-03
+
+### Added
+
+- `redcon cache prune [--repo <path>] [--dry-run] [--json]`: remove expired and
+  orphaned entries from the local cache, reporting entries removed and bytes
+  freed. Plus `[cache].local_ttl_seconds` (default `0`, disabled) for TTL-based
+  freshness of the local cache, mirroring the Redis backend.
+- `--html` on `pack`, `diff` and `benchmark`: write a self-contained HTML report
+  (inline CSS, no external requests) alongside the JSON and Markdown. The run
+  report surfaces per-file `score_breakdown` and `role` and the
+  `prompt_cache_key`; the benchmark report includes `baseline_comparison`.
+- Policy rule `forbid_skipped_critical_files`: fail when a file matching the
+  run's `[score] critical_path_keywords` is scanned but skipped. Disabled unless
+  set. The run artifact now carries `critical_path_keywords` so
+  `redcon report --policy` can enforce the rule against a recorded run.
+- `examples/service-repo`: a small, deterministic orders service with a
+  walkthrough of `plan`, `pack` and `validate`, pinned by a test so the docs
+  cannot drift.
+
 ## [1.13.0] - 2026-08-03
 
 ### Added
