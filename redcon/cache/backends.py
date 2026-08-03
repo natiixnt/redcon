@@ -387,7 +387,32 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
         ``live_paths`` (only applied when a non-empty ``live_paths`` is given, so
         a wrong or empty repo path can never wipe the whole cache). Expired takes
         precedence when an entry matches both.
+
+        The whole read-modify-write runs under the cache file lock: the on-disk
+        state is re-merged first, so entries a concurrent process wrote after
+        this backend loaded are folded in rather than discarded by the
+        authoritative write. Removals are computed on that merged view and only
+        then written. A dry run merges and reports but writes nothing.
         """
+        lock_path = self.cache_path.with_name(self.cache_path.name + ".lock")
+        with _cache_file_lock(lock_path):
+            self._data = self._merge_with_disk()
+            summary, to_remove = self._collect_prunable(live_paths)
+            if not dry_run and to_remove:
+                for store_name, key in to_remove:
+                    self._store(store_name).pop(key, None)
+                    self._timestamps(store_name).pop(key, None)
+                with contextlib.suppress(OSError):
+                    atomic_write_text(
+                        self.cache_path,
+                        json.dumps(self._data, indent=2, sort_keys=True),
+                    )
+        return summary
+
+    def _collect_prunable(
+        self, live_paths: set[str] | None
+    ) -> tuple[dict[str, int], list[tuple[str, str]]]:
+        """Compute expired/orphaned entries and the removal summary on the current state."""
         now = self._now()
         check_orphans = bool(live_paths)
         to_remove: list[tuple[str, str]] = []
@@ -412,17 +437,13 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
                     expired += 1
                 else:
                     orphaned += 1
-        if not dry_run and to_remove:
-            for store_name, key in to_remove:
-                self._store(store_name).pop(key, None)
-                self._timestamps(store_name).pop(key, None)
-            self._write_current()
-        return {
+        summary = {
             "entries_removed": len(to_remove),
             "bytes_freed": bytes_freed,
             "expired": expired,
             "orphaned": orphaned,
         }
+        return summary, to_remove
 
     def _merge_with_disk(self) -> dict[str, Any]:
         """Fold this process's in-memory entries into whatever is on disk now.
@@ -482,24 +503,6 @@ class LocalFileSummaryCacheBackend(SummaryCacheBackend):
                     json.dumps(merged, indent=2, sort_keys=True),
                 )
                 self._data = merged
-        except OSError:
-            return
-
-    def _write_current(self) -> None:
-        """Overwrite the cache file with the in-memory state, without merging.
-
-        The normal _save() unions with the on-disk copy so concurrent writers do
-        not clobber each other, but that union would resurrect the entries prune
-        just removed. Prune is authoritative maintenance, so it writes the
-        reduced state directly under the file lock.
-        """
-        lock_path = self.cache_path.with_name(self.cache_path.name + ".lock")
-        try:
-            with _cache_file_lock(lock_path):
-                atomic_write_text(
-                    self.cache_path,
-                    json.dumps(self._data, indent=2, sort_keys=True),
-                )
         except OSError:
             return
 
