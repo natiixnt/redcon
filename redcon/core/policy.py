@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Strict budget policy loading and enforcement helpers."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +32,10 @@ class PolicySpec:
     max_quality_risk_level: str | None = None
     min_estimated_savings_percentage: float | None = None
     max_context_size_bytes: int | None = None
+    # When True, fail if any file whose path matches the run's
+    # critical_path_keywords was scanned but skipped (not included). None or
+    # False leaves the rule disabled, so existing policies are unaffected.
+    forbid_skipped_critical_files: bool | None = None
 
 
 @dataclass(slots=True)
@@ -74,16 +78,15 @@ def _risk_value(label: str | None) -> int:
 
 def _parse_policy_dict(raw: dict[str, Any]) -> PolicySpec:
     policy_block = raw.get("policy")
-    if isinstance(policy_block, dict):
-        data = policy_block
-    else:
-        data = raw
+    data = policy_block if isinstance(policy_block, dict) else raw
 
     max_input_tokens = _to_int(data.get("max_estimated_input_tokens"))
     max_files = _to_int(data.get("max_files_included"))
     max_quality_risk = _normalize_risk(data.get("max_quality_risk_level"))
     min_savings = _to_float(data.get("min_estimated_savings_percentage"))
     max_context_size_bytes = _to_int(data.get("max_context_size_bytes"))
+    forbid_raw = data.get("forbid_skipped_critical_files")
+    forbid_skipped = bool(forbid_raw) if forbid_raw is not None else None
 
     return PolicySpec(
         max_estimated_input_tokens=max_input_tokens,
@@ -91,6 +94,7 @@ def _parse_policy_dict(raw: dict[str, Any]) -> PolicySpec:
         max_quality_risk_level=max_quality_risk,
         min_estimated_savings_percentage=min_savings,
         max_context_size_bytes=max_context_size_bytes,
+        forbid_skipped_critical_files=forbid_skipped,
     )
 
 
@@ -100,9 +104,7 @@ def _validate_percentage_thresholds(spec: PolicySpec) -> list[str]:
     if spec.min_estimated_savings_percentage is not None:
         val = spec.min_estimated_savings_percentage
         if val < 0 or val > 100:
-            errors.append(
-                f"min_estimated_savings_percentage must be between 0 and 100, got {val}"
-            )
+            errors.append(f"min_estimated_savings_percentage must be between 0 and 100, got {val}")
     return errors
 
 
@@ -143,8 +145,7 @@ def load_policy(path: Path) -> PolicySpec:
     validation_errors = _validate_percentage_thresholds(spec)
     if validation_errors:
         raise ValueError(
-            f"Policy file '{path}' has invalid thresholds: "
-            + "; ".join(validation_errors)
+            f"Policy file '{path}' has invalid thresholds: " + "; ".join(validation_errors)
         )
 
     return spec
@@ -164,16 +165,15 @@ def _extract_metrics(run_data: dict[str, Any]) -> dict[str, Any]:
     files_included = effective.get("files_included", [])
     if not isinstance(files_included, list):
         files_included = []
-    estimated_input_tokens = int(effective.get("estimated_input_tokens", budget.get("estimated_input_tokens", 0)) or 0)
+    estimated_input_tokens = int(
+        effective.get("estimated_input_tokens", budget.get("estimated_input_tokens", 0)) or 0
+    )
     estimated_saved_tokens = int(
         effective.get("estimated_saved_tokens", budget.get("estimated_saved_tokens", 0)) or 0
     )
 
     total_tokens = estimated_input_tokens + estimated_saved_tokens
-    if total_tokens > 0:
-        savings_pct = (estimated_saved_tokens / total_tokens) * 100.0
-    else:
-        savings_pct = 0.0
+    savings_pct = (estimated_saved_tokens / total_tokens) * 100.0 if total_tokens > 0 else 0.0
 
     compressed_context = run_data.get("compressed_context", [])
     context_size_bytes = 0
@@ -232,7 +232,11 @@ def evaluate_policy(run_data: dict[str, Any], policy: PolicySpec) -> PolicyResul
         actual = float(metrics["estimated_savings_percentage"])
         limit = float(policy.min_estimated_savings_percentage)
         passed = actual >= limit
-        checks["min_estimated_savings_percentage"] = {"actual": actual, "limit": limit, "passed": passed}
+        checks["min_estimated_savings_percentage"] = {
+            "actual": actual,
+            "limit": limit,
+            "passed": passed,
+        }
         if not passed:
             violations.append(f"estimated savings {actual:.2f}% is below minimum {limit:.2f}%")
 
@@ -243,6 +247,27 @@ def evaluate_policy(run_data: dict[str, Any], policy: PolicySpec) -> PolicyResul
         checks["max_context_size_bytes"] = {"actual": actual, "limit": limit, "passed": passed}
         if not passed:
             violations.append(f"context size {actual} bytes exceeds max {limit} bytes")
+
+    if policy.forbid_skipped_critical_files:
+        keywords = [
+            str(kw).lower()
+            for kw in run_data.get("critical_path_keywords", [])
+            if isinstance(kw, str) and kw
+        ]
+        skipped = run_data.get("files_skipped", [])
+        offenders = sorted(
+            path
+            for path in (skipped if isinstance(skipped, list) else [])
+            if isinstance(path, str) and any(kw in path.lower() for kw in keywords)
+        )
+        passed = not offenders
+        checks["forbid_skipped_critical_files"] = {
+            "actual": len(offenders),
+            "limit": 0,
+            "passed": passed,
+        }
+        if not passed:
+            violations.append(f"critical files were skipped: {', '.join(offenders)}")
 
     return PolicyResult(passed=not violations, violations=violations, checks=checks)
 

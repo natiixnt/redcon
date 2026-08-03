@@ -132,6 +132,8 @@ max_estimated_input_tokens = 30000
 max_files_included = 12
 max_quality_risk_level = "medium"
 min_estimated_savings_percentage = 0.0
+# Fail if a file matching [score] critical_path_keywords is scanned but skipped.
+forbid_skipped_critical_files = true
 ```
 
 On a violation, `pack` prints `Policy check: FAIL` with the offending rules and
