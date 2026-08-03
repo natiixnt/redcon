@@ -48,10 +48,21 @@ def test_install_preserves_existing_servers(tmp_path: Path):
     assert "redcon" in data["mcpServers"]
 
 
-def test_install_handles_malformed_json(tmp_path: Path):
-    """Install overwrites a malformed .mcp.json without crashing."""
+def test_install_refuses_to_overwrite_malformed_json(tmp_path: Path):
+    """An existing but unparseable config is preserved, not overwritten."""
     config_path = tmp_path / ".mcp.json"
     config_path.write_text("not json at all")
+    result = install_for_target("claude", tmp_path)
+    assert result["status"] == "failed"
+    assert "not overwriting" in result["message"]
+    # The user's file is left exactly as it was.
+    assert config_path.read_text() == "not json at all"
+
+
+def test_install_fills_empty_config_file(tmp_path: Path):
+    """An empty (whitespace-only) file has no content to lose, so install fills it."""
+    config_path = tmp_path / ".mcp.json"
+    config_path.write_text("   \n")
     result = install_for_target("claude", tmp_path)
     assert result["status"] == "installed"
     data = json.loads(config_path.read_text())
@@ -296,6 +307,25 @@ def test_install_zed_uses_context_servers_key(tmp_path: Path, monkeypatch: pytes
     assert entry["command"] == "redcon"
     assert entry["args"] == ["mcp", "serve"]
     assert entry["env"] == {}
+
+
+def test_install_zed_preserves_jsonc_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A Zed settings.json with comments (JSONC) is never clobbered.
+
+    Zed's settings.json routinely contains comments, so json.loads fails. The
+    installer must refuse rather than replace the user's whole config with just
+    the redcon entry.
+    """
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    settings = tmp_path / "home" / ".config" / "zed" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    original = '{\n  // user settings\n  "theme": "One Dark",\n  "buffer_font_size": 15\n}\n'
+    settings.write_text(original)
+
+    result = install_for_target("zed", tmp_path)
+    assert result["status"] == "failed"
+    assert "not overwriting" in result["message"]
+    assert settings.read_text() == original
 
 
 def test_install_zed_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

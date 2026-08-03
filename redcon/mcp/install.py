@@ -156,6 +156,34 @@ def _load_config(path: Path) -> dict[str, Any]:
         return {}
 
 
+def _read_json_config(path: Path) -> tuple[dict[str, Any], str | None]:
+    """Load a JSON config for a write, distinguishing missing from unparseable.
+
+    Returns ``(config, error)``. A missing or empty file yields ``({}, None)``
+    so install can safely create or fill it. An existing file with content that
+    does not parse as a JSON object yields ``({}, "<reason>")`` so the caller
+    refuses to overwrite it. This matters for editors like Zed whose
+    ``settings.json`` is JSONC (comments/trailing commas): parsing fails, and
+    blindly writing ``{}`` merged with the redcon entry would wipe real user
+    configuration.
+    """
+    if not path.exists():
+        return {}, None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return {}, f"read failed: {e}"
+    if not text.strip():
+        return {}, None
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        return {}, f"invalid JSON: {e}"
+    if not isinstance(data, dict):
+        return {}, "top-level JSON is not an object"
+    return data, None
+
+
 def _merge_redcon_entry(
     config: dict[str, Any],
     servers_key: str = "mcpServers",
@@ -298,7 +326,19 @@ def install_for_target(target: str, project_root: Path) -> dict[str, Any]:
         chosen = paths[0]
 
     servers_key = _SERVERS_KEY.get(target, "mcpServers")
-    config = _load_config(chosen)
+    config, parse_error = _read_json_config(chosen)
+    if parse_error is not None:
+        return {
+            "target": target,
+            "status": "failed",
+            "path": str(chosen),
+            "message": (
+                f"{chosen} exists but could not be parsed ({parse_error}); "
+                "not overwriting to avoid losing your configuration. Add redcon "
+                f'manually under "{servers_key}": '
+                '{"redcon": {"command": "redcon", "args": ["mcp", "serve"]}}.'
+            ),
+        }
     new_config, changed = _merge_redcon_entry(config, servers_key, _entry_for(target))
     if not changed:
         return {
