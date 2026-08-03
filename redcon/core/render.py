@@ -1270,6 +1270,56 @@ def render_benchmark_markdown(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _fmt_signed(value: object) -> str:
+    """Format a numeric delta with an explicit sign, or '-' when unknown."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "-"
+    return f"+{value}" if value > 0 else str(value)
+
+
+def render_benchmark_comparison_markdown(comparison: dict) -> str:
+    """Render a benchmark-vs-baseline delta to Markdown."""
+    full = comparison.get("baseline_full_context_tokens", {})
+    lines = [
+        "## Baseline Comparison",
+        "",
+        f"Baseline task: {comparison.get('baseline_task', '')}",
+        f"Baseline generated at: {comparison.get('baseline_generated_at', '')}",
+        f"Baseline full-context tokens: {full.get('baseline')} "
+        f"-> {full.get('current')} ({_fmt_signed(full.get('delta'))})",
+        "",
+    ]
+    rows = []
+    for row in comparison.get("strategies", []):
+        input_metric = row.get("estimated_input_tokens", {})
+        saved_metric = row.get("estimated_saved_tokens", {})
+        runtime_metric = row.get("runtime_ms", {})
+        rows.append(
+            [
+                row.get("strategy", ""),
+                row.get("status", ""),
+                _fmt_signed(input_metric.get("delta")),
+                _fmt_signed(saved_metric.get("delta")),
+                _fmt_signed(runtime_metric.get("delta")),
+            ]
+        )
+    lines.extend(
+        md_table(
+            [
+                "Strategy",
+                "Status",
+                "Input Tokens Delta",
+                "Saved Tokens Delta",
+                "Runtime (ms) Delta",
+            ],
+            rows,
+            align="llrrr",
+        )
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def render_profile_markdown(data: dict) -> str:
     """Render a token savings profile artifact to Markdown."""
 
