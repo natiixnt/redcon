@@ -98,6 +98,34 @@ def test_config_local_ttl_seconds_loads(tmp_path: Path) -> None:
     assert load_config(tmp_path / "other").cache.local_ttl_seconds == 0
 
 
+def test_prune_preserves_entries_written_concurrently(tmp_path: Path) -> None:
+    """An entry a concurrent process appends after prune loads is not discarded."""
+    backend = LocalFileSummaryCacheBackend(repo_path=tmp_path)
+    backend.put_summary("auth/login.py:1:h:summary", "LIVE")
+    backend.put_summary("deleted/gone.py:1:g:summary", "ORPHAN")
+    backend._save()
+
+    # Simulate another process appending a fresh entry straight to the file
+    # after this backend loaded its snapshot.
+    cache_path = tmp_path / ".redcon_cache.json"
+    disk = json.loads(cache_path.read_text())
+    disk["summaries"]["auth/session.py:1:s:summary"] = "CONCURRENT"
+    disk.setdefault("timestamps", {}).setdefault("summaries", {})["auth/session.py:1:s:summary"] = (
+        backend._now()
+    )
+    cache_path.write_text(json.dumps(disk))
+
+    result = backend.prune(live_paths={"auth/login.py", "auth/session.py"})
+
+    on_disk = json.loads(cache_path.read_text())["summaries"]
+    # The concurrently-added entry survives even though the backend never held it.
+    assert "auth/session.py:1:s:summary" in on_disk
+    # Live entry kept, orphan still removed.
+    assert "auth/login.py:1:h:summary" in on_disk
+    assert "deleted/gone.py:1:g:summary" not in on_disk
+    assert result["orphaned"] == 1
+
+
 def _run_cli(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
     return int(args.func(args))
