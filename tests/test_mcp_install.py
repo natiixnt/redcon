@@ -269,11 +269,19 @@ def test_cline_settings_path_is_platform_specific(monkeypatch: pytest.MonkeyPatc
     from redcon.mcp.install import _cline_settings_path
 
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    # Compare path components, not string suffixes, so the assertion is
+    # independent of the host separator (the runner may be Windows).
     monkeypatch.setattr("redcon.mcp.install.sys.platform", "darwin")
-    assert "Application Support" in str(_cline_settings_path())
+    assert "Application Support" in _cline_settings_path().parts
     monkeypatch.setattr("redcon.mcp.install.sys.platform", "linux")
-    assert str(_cline_settings_path()).endswith(
-        "/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    assert _cline_settings_path().parts[-7:] == (
+        ".config",
+        "Code",
+        "User",
+        "globalStorage",
+        "saoudrizwan.claude-dev",
+        "settings",
+        "cline_mcp_settings.json",
     )
 
 
