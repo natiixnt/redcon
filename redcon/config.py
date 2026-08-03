@@ -185,6 +185,10 @@ class CacheSettings:
     history_file: str = RUN_HISTORY_FILE
     history_db: str = ".redcon/history.db"
     history_max_entries: int = 200
+    # Local (file/sqlite) cache freshness. 0 disables TTL, so entries never
+    # expire and current behaviour is unchanged; a positive value expires local
+    # cache entries older than that many seconds, mirroring the Redis TTL.
+    local_ttl_seconds: int = 0
     # Redis backend settings
     redis_url: str = "redis://localhost:6379/0"
     redis_namespace: str = "redcon"
@@ -630,6 +634,8 @@ def _apply_cache_overrides(settings: CacheSettings, data: Mapping[str, Any]) -> 
         settings.history_db = str(data["history_db"])
     if "history_max_entries" in data:
         settings.history_max_entries = int(data["history_max_entries"])
+    if "local_ttl_seconds" in data:
+        settings.local_ttl_seconds = int(data["local_ttl_seconds"])
     # Redis backend settings
     if "redis_url" in data:
         settings.redis_url = str(data["redis_url"]).strip()

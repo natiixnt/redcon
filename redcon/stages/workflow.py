@@ -284,6 +284,7 @@ def run_cache_stage(repo: Path, config: RedconConfig) -> SummaryCacheBackend:
         backend=config.cache.backend,
         cache_file=config.cache.cache_file,
         enabled=config.cache.summary_cache_enabled,
+        local_ttl_seconds=config.cache.local_ttl_seconds,
         redis_url=config.cache.redis_url,
         redis_namespace=config.cache.redis_namespace,
         redis_ttl_seconds=config.cache.redis_ttl_seconds,

@@ -14,6 +14,12 @@ Environment diagnostics: Python version, optional extras (`tokenizers`,
 config validity, cache directory, git and disk space. Exit code reflects
 failures, so it works as a CI gate too.
 
+### `redcon cache prune [--repo <path>] [--dry-run] [--json]`
+Remove stale entries from the local summary cache: entries past
+`[cache].local_ttl_seconds` (when TTL is enabled) and entries whose source file
+no longer exists. Prints how many entries were removed and bytes freed;
+`--dry-run` reports without changing anything. See [cache](cache.md).
+
 ### `redcon mcp install | status | uninstall | serve`
 Manage the MCP server registration for coding agents. `serve` runs the
 stdio server itself (agents invoke it; you rarely run it by hand).
