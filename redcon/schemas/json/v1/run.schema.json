@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://redcon.dev/schemas/v1/run.schema.json",
+  "title": "redcon run artifact",
+  "description": "Artifact written by `redcon pack` and mirrored to .redcon/runs/. Identified by command == \"pack\".",
+  "type": "object",
+  "required": [
+    "command",
+    "task",
+    "repo",
+    "max_tokens",
+    "ranked_files",
+    "compressed_context",
+    "files_included",
+    "files_skipped",
+    "budget",
+    "generated_at"
+  ],
+  "properties": {
+    "command": { "const": "pack" },
+    "task": { "type": "string" },
+    "repo": { "type": "string" },
+    "max_tokens": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string" },
+    "cache_hits": { "type": "integer" },
+    "context_baseline_tokens": { "type": "integer" },
+    "files_scanned": { "type": "integer" },
+    "compression_profile": { "type": "string" },
+    "prompt_cache_key": {
+      "type": "string",
+      "description": "Deterministic sha256 hex digest (16 chars) over the packed context."
+    },
+    "files_included": { "type": "array", "items": { "type": "string" } },
+    "files_skipped": { "type": "array", "items": { "type": "string" } },
+    "budget": {
+      "type": "object",
+      "required": ["max_tokens", "estimated_input_tokens"],
+      "properties": {
+        "max_tokens": { "type": "integer" },
+        "estimated_input_tokens": { "type": "integer" },
+        "estimated_saved_tokens": { "type": "integer" },
+        "utilization_pct": { "type": "number" },
+        "duplicate_reads_prevented": { "type": "integer" },
+        "quality_risk_estimate": { "type": "string" }
+      }
+    },
+    "ranked_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "score"],
+        "properties": {
+          "path": { "type": "string" },
+          "score": { "type": "number" },
+          "heuristic_score": { "type": "number" },
+          "historical_score": { "type": "number" },
+          "line_count": { "type": "integer" },
+          "reasons": { "type": "array", "items": { "type": "string" } },
+          "score_breakdown": {
+            "type": "object",
+            "description": "Per-signal weighted contribution to the file score.",
+            "additionalProperties": { "type": "number" }
+          }
+        }
+      }
+    },
+    "compressed_context": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "text"],
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "strategy": { "type": "string" },
+          "original_tokens": { "type": "integer" },
+          "compressed_tokens": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

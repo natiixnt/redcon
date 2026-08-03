@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://redcon.dev/schemas/v1/benchmark.schema.json",
+  "title": "redcon benchmark artifact",
+  "description": "Artifact written by `redcon benchmark`. Identified by command == \"benchmark\".",
+  "type": "object",
+  "required": ["command", "task", "repo", "max_tokens", "strategies"],
+  "properties": {
+    "command": { "const": "benchmark" },
+    "task": { "type": "string" },
+    "repo": { "type": "string" },
+    "max_tokens": { "type": "integer", "minimum": 1 },
+    "top_files": { "type": "integer" },
+    "baseline_full_context_tokens": { "type": "integer" },
+    "scan_runtime_ms": { "type": "integer" },
+    "generated_at": { "type": "string" },
+    "failed_strategies": { "type": "array", "items": { "type": "string" } },
+    "strategies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["strategy", "estimated_input_tokens"],
+        "properties": {
+          "strategy": { "type": "string" },
+          "description": { "type": "string" },
+          "estimated_input_tokens": { "type": "integer" },
+          "estimated_saved_tokens": { "type": "integer" },
+          "files_included": { "type": "array", "items": { "type": "string" } },
+          "files_skipped": { "type": "array", "items": { "type": "string" } },
+          "duplicate_reads_prevented": { "type": "integer" },
+          "quality_risk_estimate": { "type": "string" },
+          "cache_hits": { "type": "integer" },
+          "runtime_ms": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

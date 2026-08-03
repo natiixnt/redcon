@@ -38,6 +38,10 @@ tokenizers = ["tiktoken>=0.7"]
 redis = ["redis>=5.0"]
 gateway = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 mcp = ["mcp>=1.0,<2.0"]
+# Optional full-spec JSON Schema validation for `redcon validate`. The core
+# ships a built-in checker covering the keywords the packaged schemas use, so
+# this extra is only needed for exhaustive draft 2020-12 coverage.
+validate = ["jsonschema>=4"]
 # Tree-sitter symbol extraction for redcon repo-map / improved file context.
 # We list per-language wheels because tree-sitter-language-pack still ships
 # broken wheels on Python 3.14 ARM (RECORD-only, no package payload).
@@ -66,6 +70,9 @@ redcon-gateway = "redcon.gateway.server:run_gateway"
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.package-data]
+"redcon.schemas" = ["json/v1/*.json"]
 
 [tool.setuptools.packages.find]
 # "redcon*" alone would also match hyphenated sibling directories
