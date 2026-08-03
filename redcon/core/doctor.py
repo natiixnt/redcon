@@ -459,7 +459,12 @@ def _check_cache(repo: Path) -> CheckResult:
     """Report the cache backend, TTL and entry count, and probe write access."""
     from redcon.config import load_config
 
-    cfg = load_config(repo)
+    try:
+        cfg = load_config(repo)
+    except Exception:  # noqa: BLE001 - a bad config is already reported by _check_config
+        return CheckResult(
+            name="cache", status="info", message="skipped: config could not be loaded"
+        )
     backend = cfg.cache.backend
     ttl = cfg.cache.local_ttl_seconds
     ttl_desc = "disabled" if ttl <= 0 else f"{ttl}s"
