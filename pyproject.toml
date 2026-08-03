@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -19,7 +19,7 @@ keywords = [
     "token-optimization",
 ]
 requires-python = ">=3.10"
-license = "FSL-1.1-MIT"
+license = { file = "LICENSE" }
 authors = [{ name = "Natalia Szczepanik" }]
 dependencies = []
 
