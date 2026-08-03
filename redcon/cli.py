@@ -1191,6 +1191,47 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate(args: argparse.Namespace) -> int:
+    from redcon.validation import detect_artifact_type, validate_artifact
+
+    path = Path(args.artifact_json)
+    errors: list[dict[str, str]] = []
+    data = None
+    resolved_type = args.type
+
+    try:
+        data = _json_mod.loads(path.read_text(encoding="utf-8"))
+    except OSError as e:
+        errors = [{"path": "$", "message": f"cannot read file: {e}"}]
+    except _json_mod.JSONDecodeError as e:
+        errors = [{"path": "$", "message": f"invalid JSON: {e}"}]
+
+    if data is not None:
+        resolved_type = args.type or detect_artifact_type(data)
+        errors = [err.as_dict() for err in validate_artifact(data, args.type)]
+
+    valid = not errors
+    if args.json:
+        print(
+            _json_mod.dumps(
+                {
+                    "artifact": str(path),
+                    "type": resolved_type,
+                    "valid": valid,
+                    "errors": errors,
+                },
+                indent=2,
+            )
+        )
+    elif valid:
+        print(f"[OK] {path}: valid {resolved_type} artifact")
+    else:
+        print(f"[X] {path}: {len(errors)} error(s):")
+        for err in errors:
+            print(f"  {err['path']}: {err['message']}")
+    return 0 if valid else 1
+
+
 def cmd_pr_audit(args: argparse.Namespace) -> int:
     engine = RedconEngine(config_path=args.config)
     audit_data = engine.pr_audit(
@@ -3054,6 +3095,20 @@ def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
     diff.add_argument("new_run_json", help="Path to newer run JSON")
     diff.add_argument("--out-prefix", help="Output prefix for diff JSON/Markdown")
     diff.set_defaults(func=cmd_diff)
+
+    validate = sub.add_parser(
+        "validate", help="Validate a run, diff or benchmark JSON artifact against its schema"
+    )
+    validate.add_argument("artifact_json", help="Path to a redcon JSON artifact")
+    validate.add_argument(
+        "--type",
+        choices=["run", "diff", "benchmark"],
+        help="Override artifact-type detection (default: infer from the 'command' field).",
+    )
+    validate.add_argument(
+        "--json", action="store_true", help="Emit a machine-readable JSON result."
+    )
+    validate.set_defaults(func=cmd_validate)
 
     pr_audit = sub.add_parser("pr-audit", help="Analyze pull-request diffs for context growth")
     pr_audit.add_argument("--repo", default=".", help="Repository path")

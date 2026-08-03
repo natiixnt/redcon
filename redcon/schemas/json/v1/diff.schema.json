@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://redcon.dev/schemas/v1/diff.schema.json",
+  "title": "redcon diff artifact",
+  "description": "Artifact written by `redcon diff old.json new.json`. Identified by command == \"diff\".",
+  "type": "object",
+  "required": [
+    "command",
+    "old_run",
+    "new_run",
+    "task_diff",
+    "context_diff",
+    "ranked_score_changes",
+    "budget_delta"
+  ],
+  "properties": {
+    "command": { "const": "diff" },
+    "old_run": { "type": "string" },
+    "new_run": { "type": "string" },
+    "task_diff": {
+      "type": "object",
+      "required": ["old_task", "new_task", "changed"],
+      "properties": {
+        "old_task": { "type": "string" },
+        "new_task": { "type": "string" },
+        "changed": { "type": "boolean" }
+      }
+    },
+    "context_diff": {
+      "type": "object",
+      "required": ["files_added", "files_removed", "added_count", "removed_count"],
+      "properties": {
+        "files_added": { "type": "array", "items": { "type": "string" } },
+        "files_removed": { "type": "array", "items": { "type": "string" } },
+        "added_count": { "type": "integer" },
+        "removed_count": { "type": "integer" }
+      }
+    },
+    "ranked_score_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "delta", "change_type"],
+        "properties": {
+          "path": { "type": "string" },
+          "old_score": { "type": ["number", "null"] },
+          "new_score": { "type": ["number", "null"] },
+          "delta": { "type": "number" },
+          "change_type": {
+            "type": "string",
+            "enum": ["added", "removed", "changed"]
+          }
+        }
+      }
+    },
+    "budget_delta": { "type": "object" }
+  }
+}

@@ -211,6 +211,19 @@ Render summary report from run artifact.
 ### `redcon diff <old-run.json> <new-run.json>`
 Compare two run artifacts and emit JSON + Markdown delta outputs.
 
+### `redcon validate <artifact.json> [--type run|diff|benchmark] [--json]`
+Validate a redcon JSON artifact against its published schema. The artifact
+type is inferred from the `command` field (`pack` -> run, `diff`, `benchmark`);
+`--type` overrides that. Exit code is `0` when valid and `1` when invalid or
+unrecognized, so it drops straight into CI. `--json` emits a machine-readable
+result (`{artifact, type, valid, errors:[{path, message}]}`).
+
+The versioned draft 2020-12 schemas ship in the package under
+`redcon/schemas/json/v1/` and cover, among other fields, each ranked file's
+`score_breakdown` and the run's `prompt_cache_key`. Validation uses a built-in
+zero-dependency checker; installing `redcon[validate]` swaps in `jsonschema`
+for full-spec coverage.
+
 ### `redcon pr-audit --repo <path> [--base <ref>] [--head <ref>]`
 Analyze a pull request diff directly from git and emit:
 - `<prefix>.json`
