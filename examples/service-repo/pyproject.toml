@@ -1,0 +1,8 @@
+[project]
+name = "orders-service"
+version = "0.1.0"
+description = "A small deterministic orders service used as a redcon example."
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]

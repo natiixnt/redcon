@@ -77,6 +77,8 @@ redcon pr-audit --repo . --base origin/main --head HEAD
 
 Output goes to `run.json` (machine-readable) and `run.md` (human-readable). Use them in CI, or feed the compressed context directly into your agent.
 
+For a full end-to-end walkthrough on a realistic service repo (plan, pack, validate, with deterministic output), see [examples/service-repo](examples/service-repo/README.md).
+
 ## How It Works
 
 ```
