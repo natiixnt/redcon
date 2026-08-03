@@ -9,7 +9,7 @@ Stop sending agents 200k tokens of irrelevant code. Redcon scores, compresses, a
 [![PyPI](https://img.shields.io/pypi/v/redcon)](https://pypi.org/project/redcon/)
 [![Tests](https://github.com/natiixnt/redcon/actions/workflows/test.yml/badge.svg)](https://github.com/natiixnt/redcon/actions/workflows/test.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/v/redcon.redcon?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=redcon.redcon)
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Marketplace-blue)](https://marketplace.visualstudio.com/items?itemName=redcon.redcon)
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue.svg)](LICENSE)
 
 [Install](#install) - [Quick Start](#quick-start) - [How It Works](#how-it-works) - [Docs](docs/)
