@@ -55,6 +55,10 @@
           "heuristic_score": { "type": "number" },
           "historical_score": { "type": "number" },
           "line_count": { "type": "integer" },
+          "role": {
+            "type": "string",
+            "description": "Path-derived file role (prod/test/docs/example/config/generated)."
+          },
           "reasons": { "type": "array", "items": { "type": "string" } },
           "score_breakdown": {
             "type": "object",
