@@ -457,7 +457,11 @@ def render_plan_markdown(data: dict) -> str:
     lines.extend(["", "## Ranked Relevant Files"])
     for item in data["ranked_files"]:
         reasons = ", ".join(item["reasons"]) if item["reasons"] else "no specific reason"
-        lines.append(f"- `{item['path']}` ({_format_ranked_file_scores(item)}) - {reasons}")
+        role = item.get("role")
+        role_tag = f" [{role}]" if role else ""
+        lines.append(
+            f"- `{item['path']}`{role_tag} ({_format_ranked_file_scores(item)}) - {reasons}"
+        )
         breakdown = item.get("score_breakdown") or {}
         if breakdown:
             parts = ", ".join(f"{k} {v}" for k, v in sorted(breakdown.items()))

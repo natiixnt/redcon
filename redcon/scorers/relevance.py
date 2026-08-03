@@ -9,7 +9,6 @@ from collections import defaultdict
 from redcon.config import ScoreSettings
 from redcon.core.text import task_keywords
 from redcon.schemas.models import FileRecord, RankedFile
-from redcon.scorers.file_roles import classify_file_role
 from redcon.scorers.history import TaskSimilarityCallable, compute_historical_adjustments
 from redcon.scorers.import_graph import build_import_graph
 
@@ -202,7 +201,8 @@ def score_files(
     if cfg.role_multipliers:
         keywords_lower = {k.lower() for k in keywords}
         for record in files:
-            role = classify_file_role(record.path)
+            # record.role is populated at scan time and cached in the index.
+            role = record.role
             multiplier = cfg.role_multipliers.get(role, 1.0)
             # Override: when task keywords mention the role's domain, boost
             # instead of penalizing (e.g. "test" keyword boosts test files).
@@ -390,6 +390,7 @@ def score_files(
                 historical_score=round(historical_value, 3),
                 reasons=reasons[:6],
                 score_breakdown={k: round(v, 3) for k, v in bd.items()},
+                role=record.role,
             )
         )
 

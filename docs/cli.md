@@ -58,6 +58,10 @@ matches, symbol matches, import-graph relationships, and file-role and
 changed-file boosts). The human `plan` view prints these as a `signals:` line
 under each file. Deterministic.
 
+Each ranked file also carries its `role` (`prod`, `test`, `docs`, `example`,
+`config` or `generated`), classified once at scan time and cached in the scan
+index. It appears in `run.json` and as a `[role]` tag in the human `plan` view.
+
 ### `redcon plan <task> --workspace <workspace.toml>`
 Rank relevant files across multiple local repositories or monorepo packages.
 
