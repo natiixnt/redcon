@@ -1,13 +1,13 @@
-from __future__ import annotations
-
 """Benchmark mode for comparing deterministic context packing strategies."""
 
+from __future__ import annotations
+
 import logging
+import time
+import traceback
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-import time
-import traceback
 from typing import Any
 
 from redcon.config import RedconConfig, WorkspaceDefinition, load_config
@@ -17,9 +17,146 @@ from redcon.core.tokens import compare_builtin_token_estimators
 from redcon.plugins import ResolvedPlugins, resolve_plugins
 from redcon.schemas.models import DEFAULT_TOP_FILES
 from redcon.stages.workflow import run_scan_stage, run_scan_workspace_stage, run_score_stage
-from redcon.telemetry import NoOpTelemetrySink, TelemetrySession, TelemetrySink, build_telemetry_sink
+from redcon.telemetry import (
+    NoOpTelemetrySink,
+    TelemetrySession,
+    TelemetrySink,
+    build_telemetry_sink,
+)
 
 logger = logging.getLogger(__name__)
+
+# Per-strategy numeric metrics compared against a baseline benchmark and
+# emitted as CSV columns. Order is fixed for deterministic output.
+_COMPARED_METRICS = ("estimated_input_tokens", "estimated_saved_tokens", "runtime_ms")
+
+_CSV_BASE_COLUMNS = (
+    "strategy",
+    "estimated_input_tokens",
+    "estimated_saved_tokens",
+    "files_included",
+    "files_skipped",
+    "duplicate_reads_prevented",
+    "cache_hits",
+    "quality_risk_estimate",
+    "runtime_ms",
+)
+
+
+def _strategies_by_name(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {s.get("strategy", ""): s for s in data.get("strategies", []) if isinstance(s, dict)}
+
+
+def compare_benchmarks(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """Compute a deterministic delta of a current benchmark against a baseline.
+
+    Both arguments are benchmark artifacts (``command == "benchmark"``).
+    Strategies are matched by name; each shared strategy reports the numeric
+    delta (current minus baseline) for the standard metrics, plus the
+    file-count and quality-risk change. Strategies present in only one run are
+    flagged ``added`` or ``removed``. The metric definitions are exactly those
+    the benchmark already records, so this adds no new measurement.
+    """
+    base_by_name = _strategies_by_name(baseline)
+    cur_by_name = _strategies_by_name(current)
+
+    strategy_rows: list[dict[str, Any]] = []
+    for name in sorted(set(base_by_name) | set(cur_by_name)):
+        base = base_by_name.get(name)
+        cur = cur_by_name.get(name)
+        if base is None:
+            status = "added"
+        elif cur is None:
+            status = "removed"
+        else:
+            status = "compared"
+
+        row: dict[str, Any] = {"strategy": name, "status": status}
+        for metric in _COMPARED_METRICS:
+            b = base.get(metric) if base else None
+            c = cur.get(metric) if cur else None
+            row[metric] = {
+                "baseline": b,
+                "current": c,
+                "delta": (c - b)
+                if isinstance(b, (int, float)) and isinstance(c, (int, float))
+                else None,
+            }
+        b_files = len(base.get("files_included", [])) if base else None
+        c_files = len(cur.get("files_included", [])) if cur else None
+        row["files_included"] = {
+            "baseline": b_files,
+            "current": c_files,
+            "delta": (c_files - b_files) if b_files is not None and c_files is not None else None,
+        }
+        row["quality_risk_estimate"] = {
+            "baseline": base.get("quality_risk_estimate") if base else None,
+            "current": cur.get("quality_risk_estimate") if cur else None,
+        }
+        strategy_rows.append(row)
+
+    base_full = baseline.get("baseline_full_context_tokens")
+    cur_full = current.get("baseline_full_context_tokens")
+    return {
+        "baseline_task": baseline.get("task"),
+        "baseline_generated_at": baseline.get("generated_at"),
+        "baseline_full_context_tokens": {
+            "baseline": base_full,
+            "current": cur_full,
+            "delta": (cur_full - base_full)
+            if isinstance(base_full, (int, float)) and isinstance(cur_full, (int, float))
+            else None,
+        },
+        "strategies": strategy_rows,
+    }
+
+
+def benchmark_csv_rows(
+    data: dict[str, Any], comparison: dict[str, Any] | None = None
+) -> tuple[list[str], list[list[Any]]]:
+    """Build (header, rows) for a benchmark CSV, one row per strategy.
+
+    When ``comparison`` is provided, baseline and delta columns for the
+    standard metrics are appended. Pure and deterministic.
+    """
+    header = list(_CSV_BASE_COLUMNS)
+    delta_by_name: dict[str, dict[str, Any]] = {}
+    if comparison is not None:
+        header += [
+            "baseline_estimated_input_tokens",
+            "estimated_input_tokens_delta",
+            "estimated_saved_tokens_delta",
+            "runtime_ms_delta",
+        ]
+        delta_by_name = {r["strategy"]: r for r in comparison.get("strategies", [])}
+
+    rows: list[list[Any]] = []
+    for strategy in data.get("strategies", []):
+        name = strategy.get("strategy", "")
+        row: list[Any] = [
+            name,
+            strategy.get("estimated_input_tokens"),
+            strategy.get("estimated_saved_tokens"),
+            len(strategy.get("files_included", [])),
+            len(strategy.get("files_skipped", [])),
+            strategy.get("duplicate_reads_prevented"),
+            strategy.get("cache_hits"),
+            strategy.get("quality_risk_estimate"),
+            strategy.get("runtime_ms"),
+        ]
+        if comparison is not None:
+            delta = delta_by_name.get(name, {})
+            input_metric = delta.get("estimated_input_tokens", {})
+            saved_metric = delta.get("estimated_saved_tokens", {})
+            runtime_metric = delta.get("runtime_ms", {})
+            row += [
+                input_metric.get("baseline"),
+                input_metric.get("delta"),
+                saved_metric.get("delta"),
+                runtime_metric.get("delta"),
+            ]
+        rows.append(row)
+    return header, rows
 
 
 def _risk_from_coverage(input_tokens: int, baseline_tokens: int) -> str:
@@ -64,8 +201,18 @@ def run_benchmark(
 ) -> dict[str, Any]:
     """Run benchmark strategies and return JSON-serializable report."""
 
-    cfg = config if config is not None else (workspace.config if workspace is not None else load_config(repo, config_path=config_path))
-    prepared_cfg, model_profile = prepare_config_for_model_profile(cfg, requested_max_tokens=max_tokens)
+    cfg = (
+        config
+        if config is not None
+        else (
+            workspace.config
+            if workspace is not None
+            else load_config(repo, config_path=config_path)
+        )
+    )
+    prepared_cfg, model_profile = prepare_config_for_model_profile(
+        cfg, requested_max_tokens=max_tokens
+    )
     resolved_plugins = resolve_plugins(prepared_cfg)
     effective_max_tokens = prepared_cfg.budget.max_tokens
     effective_top_files = top_files if top_files is not None else prepared_cfg.budget.top_files
@@ -83,7 +230,9 @@ def run_benchmark(
             "repo": target_repo,
         },
     )
-    telemetry_top_files = effective_top_files if effective_top_files is not None else DEFAULT_TOP_FILES
+    telemetry_top_files = (
+        effective_top_files if effective_top_files is not None else DEFAULT_TOP_FILES
+    )
     telemetry.emit(
         "run_started",
         max_tokens=effective_max_tokens,
@@ -149,7 +298,9 @@ def run_benchmark(
             }
         )
     except Exception:
-        logger.warning("benchmark: strategy naive_full_context failed, skipping:\n%s", traceback.format_exc())
+        logger.warning(
+            "benchmark: strategy naive_full_context failed, skipping:\n%s", traceback.format_exc()
+        )
         failed_strategies.append("naive_full_context")
 
     # -- Strategy 2/4: top_k_selection --
@@ -169,14 +320,18 @@ def run_benchmark(
                 "files_included": topk_included,
                 "files_skipped": topk_skipped,
                 "duplicate_reads_prevented": 0,
-                "quality_risk_estimate": _risk_from_coverage(topk_input_tokens, baseline_total_tokens),
+                "quality_risk_estimate": _risk_from_coverage(
+                    topk_input_tokens, baseline_total_tokens
+                ),
                 "cache_hits": 0,
                 "runtime_ms": _round_runtime_ms(topk_start, topk_end),
                 "notes": f"top_files={effective_top_files}",
             }
         )
     except Exception:
-        logger.warning("benchmark: strategy top_k_selection failed, skipping:\n%s", traceback.format_exc())
+        logger.warning(
+            "benchmark: strategy top_k_selection failed, skipping:\n%s", traceback.format_exc()
+        )
         failed_strategies.append("top_k_selection")
 
     # -- Strategy 3/4: compressed_pack --
@@ -209,14 +364,18 @@ def run_benchmark(
                 "estimated_saved_tokens": compressed_saved_tokens,
                 "files_included": list(packed_run.get("files_included", [])),
                 "files_skipped": list(packed_run.get("files_skipped", [])),
-                "duplicate_reads_prevented": int(pack_budget.get("duplicate_reads_prevented", 0) or 0),
+                "duplicate_reads_prevented": int(
+                    pack_budget.get("duplicate_reads_prevented", 0) or 0
+                ),
                 "quality_risk_estimate": str(pack_budget.get("quality_risk_estimate", "unknown")),
                 "cache_hits": int(packed_run.get("cache_hits", 0) or 0),
                 "runtime_ms": _round_runtime_ms(pack_start, pack_end),
             }
         )
     except Exception:
-        logger.warning("benchmark: strategy compressed_pack failed, skipping:\n%s", traceback.format_exc())
+        logger.warning(
+            "benchmark: strategy compressed_pack failed, skipping:\n%s", traceback.format_exc()
+        )
         failed_strategies.append("compressed_pack")
 
     # -- Strategy 4/4: cache_assisted_pack --
@@ -248,7 +407,9 @@ def run_benchmark(
                 "estimated_saved_tokens": cache_saved_tokens,
                 "files_included": list(cache_run.get("files_included", [])),
                 "files_skipped": list(cache_run.get("files_skipped", [])),
-                "duplicate_reads_prevented": int(cache_budget.get("duplicate_reads_prevented", 0) or 0),
+                "duplicate_reads_prevented": int(
+                    cache_budget.get("duplicate_reads_prevented", 0) or 0
+                ),
                 "quality_risk_estimate": str(cache_budget.get("quality_risk_estimate", "unknown")),
                 "cache_hits": int(cache_run.get("cache_hits", 0) or 0),
                 "runtime_ms": _round_runtime_ms(cache_start, cache_end),
@@ -256,7 +417,9 @@ def run_benchmark(
             }
         )
     except Exception:
-        logger.warning("benchmark: strategy cache_assisted_pack failed, skipping:\n%s", traceback.format_exc())
+        logger.warning(
+            "benchmark: strategy cache_assisted_pack failed, skipping:\n%s", traceback.format_exc()
+        )
         failed_strategies.append("cache_assisted_pack")
 
     estimator_samples: list[dict[str, Any]] = compare_builtin_token_estimators(

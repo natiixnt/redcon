@@ -285,6 +285,18 @@ Compare deterministic strategies:
 Benchmark artifacts also record the active token-estimator backend and a small estimator comparison
 on local sample text from the run.
 
+`--baseline <earlier-benchmark.json>` compares the run against a previous benchmark
+artifact. It matches strategies by name and reports the per-strategy delta (input
+tokens, saved tokens, runtime) plus added/removed strategies, using the same metric
+definitions the benchmark already records. The delta lands in the JSON under
+`baseline_comparison`, in the Markdown as a `Baseline Comparison` table, and in the
+run summary. Strategy order in the comparison is sorted, so output is deterministic.
+
+`--csv` additionally writes `<prefix>.csv` with one row per strategy (input/saved
+tokens, file counts, cache hits, quality risk, runtime). With `--baseline`, the CSV
+gains baseline and delta columns. Without the flag no CSV is written; defaults are
+unchanged.
+
 `benchmark` also accepts `--workspace <workspace.toml>` for multi-repo/local-package runs.
 
 ### `redcon heatmap [<history> ...] [--limit N] [--out-prefix <path>]`

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import csv as _csv_mod
 import json as _json_mod
 import logging
 import sys
@@ -21,6 +22,7 @@ from redcon.core.render import (
     render_advise_markdown,
     render_agent_plan_markdown,
     render_agent_simulation_markdown,
+    render_benchmark_comparison_markdown,
     render_benchmark_markdown,
     render_context_dataset_markdown,
     render_dataset_markdown,
@@ -1294,13 +1296,42 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
         max_tokens=args.max_tokens,
         top_files=args.top_files,
     )
+    comparison = None
+    if args.baseline:
+        baseline_path = Path(args.baseline)
+        try:
+            baseline_data = _json_mod.loads(baseline_path.read_text(encoding="utf-8"))
+        except (OSError, _json_mod.JSONDecodeError) as e:
+            print(f"Error: cannot read baseline {baseline_path}: {e}")
+            return 1
+        if not (isinstance(baseline_data, dict) and baseline_data.get("command") == "benchmark"):
+            print(f"Error: baseline {baseline_path} is not a benchmark artifact")
+            return 1
+        from redcon.core.benchmark import compare_benchmarks
+
+        comparison = compare_benchmarks(baseline_data, benchmark_data)
+        benchmark_data["baseline_comparison"] = comparison
+
     markdown = render_benchmark_markdown(benchmark_data)
+    if comparison is not None:
+        markdown = markdown.rstrip("\n") + "\n\n" + render_benchmark_comparison_markdown(comparison)
 
     base = args.out_prefix or f"redcon-benchmark-{_base_name(args.task)}"
     json_path = Path(f"{base}.json")
     md_path = Path(f"{base}.md")
     write_json(json_path, benchmark_data)
     md_path.write_text(markdown, encoding="utf-8")
+
+    csv_path = None
+    if args.csv:
+        from redcon.core.benchmark import benchmark_csv_rows
+
+        header, rows = benchmark_csv_rows(benchmark_data, comparison)
+        csv_path = Path(f"{base}.csv")
+        with csv_path.open("w", encoding="utf-8", newline="") as fh:
+            writer = _csv_mod.writer(fh)
+            writer.writerow(header)
+            writer.writerows(rows)
 
     print("Benchmark summary:")
     model_profile = benchmark_data.get("model_profile", {})
@@ -1333,8 +1364,19 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
             f"risk={strategy.get('quality_risk_estimate')} "
             f"runtime_ms={strategy.get('runtime_ms')}"
         )
+    if comparison is not None:
+        print(f"Baseline comparison (vs {args.baseline}):")
+        for row in comparison.get("strategies", []):
+            input_delta = row.get("estimated_input_tokens", {}).get("delta")
+            saved_delta = row.get("estimated_saved_tokens", {}).get("delta")
+            print(
+                f"- {row.get('strategy')} [{row.get('status')}]: "
+                f"input_delta={input_delta} saved_delta={saved_delta}"
+            )
     print(f"Wrote benchmark JSON: {json_path}")
     print(f"Wrote benchmark Markdown: {md_path}")
+    if csv_path is not None:
+        print(f"Wrote benchmark CSV: {csv_path}")
     return 0
 
 
@@ -3155,6 +3197,15 @@ def _register_reporting_commands(sub: argparse._SubParsersAction) -> None:
         "--config", help="Optional path to config TOML (default: <repo>/redcon.toml)."
     )
     benchmark.add_argument("--out-prefix", help="Output file prefix for benchmark JSON/Markdown")
+    benchmark.add_argument(
+        "--baseline",
+        help="Path to an earlier benchmark JSON to compare against; adds a delta summary.",
+    )
+    benchmark.add_argument(
+        "--csv",
+        action="store_true",
+        help="Also write a per-strategy CSV artifact alongside the JSON/Markdown.",
+    )
     benchmark.set_defaults(func=cmd_benchmark)
 
 
