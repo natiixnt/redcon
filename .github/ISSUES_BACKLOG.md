@@ -2,7 +2,7 @@
 
 This backlog is aligned with the current repository (CLI + Python API + examples + CI policy + telemetry abstraction) and near-term roadmap items.
 
-Statuses were audited against the shipped code (through 1.13.0). Each issue
+Statuses were audited against the shipped code (through 1.14.0). Each issue
 carries a **Status** line: `Delivered`, `Partial`, or `Open`. Entries are kept
 in place for provenance; nothing is removed when an item ships.
 
@@ -36,7 +36,7 @@ in place for provenance; nothing is removed when an item ships.
    - Support TTL-based cache freshness.
    - Add command to prune expired/unused entries.
    - Labels: `cache`, `cli`, `good first issue`.
-   - **Status:** Partial - the Redis backend has a configurable TTL, but there is no TTL freshness for the local cache and no dedicated `cache prune` command yet.
+   - **Status:** Delivered - `[cache].local_ttl_seconds` adds local-cache TTL (0 disables) and `redcon cache prune` (with `--dry-run`) removes expired and orphaned entries (1.14.0).
 
 6. **Expose scoring component breakdown in plan output**
    - Show weighted contribution of path/content/import-graph signals.
@@ -48,19 +48,19 @@ in place for provenance; nothing is removed when an item ships.
    - Generate static HTML artifacts for CI and sharing.
    - Keep Markdown/JSON outputs unchanged.
    - Labels: `reporting`, `ci`, `ux`.
-   - **Status:** Open - HTML exists only for the import-graph visualizer; run/diff/benchmark reports are still JSON/Markdown.
+   - **Status:** Delivered - `--html` on `pack`, `diff` and `benchmark` writes self-contained HTML reports (1.14.0).
 
 8. **Policy rule: fail when critical files are skipped**
    - Add configurable threshold for skipped critical files.
    - Integrate with strict mode exit codes.
    - Labels: `policy`, `cli`, `good first issue`.
-   - **Status:** Open - critical-path keywords affect scoring, but there is no policy rule that fails on skipped critical files.
+   - **Status:** Delivered - the `forbid_skipped_critical_files` policy rule fails when a critical-path file is skipped, integrated with `--strict` (1.14.0).
 
 9. **Expand examples gallery with one realistic service repo**
    - Add mini repo scenario with reproducible commands and outputs.
    - Keep deterministic results for tests/docs.
    - Labels: `examples`, `docs`, `good first issue`.
-   - **Status:** Partial - `examples/` holds several task scenarios and recorded sample outputs; a single dedicated realistic service repo is not yet added.
+   - **Status:** Delivered - `examples/service-repo` is a realistic orders service with a pinned plan/pack/validate walkthrough (1.14.0).
 
 10. **Add CLI vs Python API parity tests**
     - Verify plan/pack/report parity for equivalent inputs.
@@ -141,5 +141,5 @@ in place for provenance; nothing is removed when an item ships.
 - #14 Add CI recipes for changed-files and strict policy gates
 - #15 Improve import-graph test coverage for mixed Python/TS repos
 
-Across the whole backlog, #5, #7, #8 and #9 remain open or partial (see the
-Status lines above); every other issue has shipped.
+All 20 backlog issues have been delivered as of 1.14.0 (see the Status lines
+above).
