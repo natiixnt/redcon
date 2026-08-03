@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-08-03
+
+### Added
+
+- `redcon doctor` now also reports the license tier and status (never the key or
+  its path), the scan-index presence, format version and file count, and the
+  cache backend, entry count and TTL with a write-access probe. It additionally
+  checks the `pro`, `validate` and `heavy_compression` optional extras.
+
+### Fixed
+
+- `redcon cache prune` no longer drops entries a concurrent process wrote after
+  it loaded: the whole read-modify-write runs under the cache file lock and
+  re-merges the on-disk state before applying removals.
+
+### Changed
+
+- The launch backlog and roadmap status lines are refreshed to record all 20
+  backlog issues as delivered through 1.14.0.
+
 ## [1.14.0] - 2026-08-03
 
 ### Added
