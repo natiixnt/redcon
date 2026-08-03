@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--changed PATH ...` on `plan` and `pack`: boost the named files and their
   import-graph neighbours in ranking, so a task scoped to a diff surfaces the
   files it touches. Deterministic.
+- Per-file `score_breakdown` in `plan` output, `run.json`, and the human plan
+  view: the weighted contribution of each ranking signal (path/content
+  keywords, symbols, import-graph, role and changed-file boosts). Deterministic.
 
 ### Changed
 

@@ -458,6 +458,10 @@ def render_plan_markdown(data: dict) -> str:
     for item in data["ranked_files"]:
         reasons = ", ".join(item["reasons"]) if item["reasons"] else "no specific reason"
         lines.append(f"- `{item['path']}` ({_format_ranked_file_scores(item)}) - {reasons}")
+        breakdown = item.get("score_breakdown") or {}
+        if breakdown:
+            parts = ", ".join(f"{k} {v}" for k, v in sorted(breakdown.items()))
+            lines.append(f"  - signals: {parts}")
     if not data["ranked_files"]:
         lines.append("- No files matched current heuristic signals.")
     lines.append("")
