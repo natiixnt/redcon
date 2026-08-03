@@ -186,6 +186,60 @@ def test_install_gemini_writes_settings(tmp_path: Path, monkeypatch: pytest.Monk
     assert data["mcpServers"]["redcon"] == REDCON_ENTRY
 
 
+def test_install_junie_writes_project_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Junie CLI reads a standard mcpServers entry from .junie/mcp/mcp.json."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    result = install_for_target("junie", tmp_path)
+    assert result["status"] == "installed"
+    data = json.loads((tmp_path / ".junie" / "mcp" / "mcp.json").read_text())
+    assert data["mcpServers"]["redcon"] == REDCON_ENTRY
+
+
+def test_install_junie_prefers_existing_global_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """An existing global ~/.junie config is merged into rather than shadowed."""
+    home = tmp_path / "home"
+    monkeypatch.setattr("pathlib.Path.home", lambda: home)
+    global_path = home / ".junie" / "mcp" / "mcp.json"
+    global_path.parent.mkdir(parents=True)
+    global_path.write_text(json.dumps({"mcpServers": {"other": {"command": "x", "args": []}}}))
+
+    result = install_for_target("junie", tmp_path)
+    assert result["status"] == "installed"
+    assert result["path"] == str(global_path)
+    data = json.loads(global_path.read_text())
+    assert "other" in data["mcpServers"]
+    assert data["mcpServers"]["redcon"] == REDCON_ENTRY
+    # The project path is left untouched when a global config already exists.
+    assert not (tmp_path / ".junie" / "mcp" / "mcp.json").exists()
+
+
+def test_uninstall_junie_removes_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Uninstall strips the redcon entry from the Junie config."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    install_for_target("junie", tmp_path)
+    result = uninstall_for_target("junie", tmp_path)
+    assert result["status"] == "removed"
+    data = json.loads((tmp_path / ".junie" / "mcp" / "mcp.json").read_text())
+    assert "redcon" not in data.get("mcpServers", {})
+
+
+def test_detect_targets_finds_junie_by_project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A project .junie directory adds junie to the detected targets."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    (tmp_path / ".junie").mkdir()
+    assert "junie" in detect_targets(tmp_path)
+
+
+def test_installed_path_reports_junie(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """installed_path locates the Junie registration once written."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    assert installed_path("junie", tmp_path) is None
+    install_for_target("junie", tmp_path)
+    assert installed_path("junie", tmp_path) == tmp_path / ".junie" / "mcp" / "mcp.json"
+
+
 def test_detect_targets_defaults_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Without detected agents only the default trio is targeted."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
