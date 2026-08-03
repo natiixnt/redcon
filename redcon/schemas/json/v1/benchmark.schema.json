@@ -15,6 +15,10 @@
     "scan_runtime_ms": { "type": "integer" },
     "generated_at": { "type": "string" },
     "failed_strategies": { "type": "array", "items": { "type": "string" } },
+    "baseline_comparison": {
+      "type": "object",
+      "description": "Present when --baseline is given: per-strategy deltas against an earlier benchmark."
+    },
     "strategies": {
       "type": "array",
       "items": {

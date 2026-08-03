@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-08-03
+
+### Added
+
+- Junie CLI as a first-class `redcon mcp install` target: registers the redcon
+  MCP server under `mcpServers` in `.junie/mcp/mcp.json` (project) or
+  `~/.junie/mcp/mcp.json` (global). Detected when a `.junie` directory exists.
+- Cline and Zed as first-class install targets. Cline uses its VS Code
+  global-storage `cline_mcp_settings.json` (per-OS path); Zed uses the
+  `context_servers` key in `~/.config/zed/settings.json`.
+- Versioned JSON Schemas (draft 2020-12) for the `pack` (run), `diff` and
+  `benchmark` artifacts under `redcon/schemas/json/v1/`, plus `redcon validate
+  <artifact.json>`: picks the schema from the artifact's `command` field, exits
+  0 or 1, and can emit machine-readable errors with `--json`. Validation uses a
+  built-in checker with no new hard dependency; installing `redcon[validate]`
+  swaps in `jsonschema` for full-spec coverage.
+- `redcon benchmark --baseline <earlier-benchmark.json>`: a deterministic
+  per-strategy delta (input tokens, saved tokens, runtime) against a previous
+  benchmark, in the JSON (`baseline_comparison`), Markdown and run summary.
+- `redcon benchmark --csv`: an optional per-strategy CSV artifact alongside the
+  JSON and Markdown, with baseline and delta columns when `--baseline` is given.
+- Each ranked file now carries its `role` (prod/test/docs/example/config/
+  generated) in `run.json` and plan output, shown as a `[role]` tag in the
+  human plan view.
+
+### Changed
+
+- The file role is classified once at scan time and cached in the scan index
+  (`INDEX_FORMAT_VERSION` bumped to 3) instead of being recomputed per run.
+- `redcon mcp install` refuses to overwrite a config file that exists but does
+  not parse as JSON (for example a Zed `settings.json` with comments), reporting
+  a failed status with manual-add instructions instead of replacing the user's
+  configuration. Missing or empty files are still created or filled.
+
 ## [1.12.0] - 2026-08-03
 
 ### Added
