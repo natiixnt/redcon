@@ -1,0 +1,10 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["natiixnt"],
+  "name": "redcon",
+  "description": "Deterministic context budgeting for coding-agent workflows",
+  "repository": "https://github.com/natiixnt/redcon",
+  "license": "FSL-1.1-MIT",
+  "runtime": "python",
+  "tags": ["mcp", "context", "coding-agents", "token-budget", "deterministic"]
+}
