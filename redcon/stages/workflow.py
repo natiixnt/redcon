@@ -62,6 +62,7 @@ def _serialize_ranked_file(item: RankedFile) -> dict:
         "historical_score": item.historical_score,
         "reasons": item.reasons,
         "line_count": item.file.line_count,
+        "score_breakdown": {k: item.score_breakdown[k] for k in sorted(item.score_breakdown)},
     }
     if item.file.repo_label:
         data["repo"] = item.file.repo_label
@@ -226,6 +227,14 @@ def _get_git_recent_paths(repo: Path, commits: int) -> dict[str, float]:
     return recent
 
 
+def _normalize_changed_path(path: str) -> str:
+    """Normalize a user-supplied --changed path to match scanned relative paths."""
+    normalized = str(path).strip().replace("\\", "/")
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
 def run_score_stage(
     task: str,
     files: list[FileRecord],
@@ -254,7 +263,9 @@ def run_score_stage(
         if recent:
             scorer_options["recent_paths"] = recent
     if changed_files:
-        scorer_options["changed_paths"] = {str(p) for p in changed_files if str(p).strip()}
+        scorer_options["changed_paths"] = {
+            _normalize_changed_path(p) for p in changed_files if str(p).strip()
+        }
     return resolved.scorer.score(
         task=task,
         files=files,

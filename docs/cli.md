@@ -52,6 +52,12 @@ and their one-hop import-graph neighbours get a deterministic ranking boost, so
 the files a task touches surface even when keyword overlap is weak. Tune with
 `[score] changed_file_boost` and `changed_neighbor_boost`.
 
+Every ranked file in `plan` output and `run.json` carries a `score_breakdown`:
+the weighted contribution of each ranking signal (path and content keyword
+matches, symbol matches, import-graph relationships, and file-role and
+changed-file boosts). The human `plan` view prints these as a `signals:` line
+under each file. Deterministic.
+
 ### `redcon plan <task> --workspace <workspace.toml>`
 Rank relevant files across multiple local repositories or monorepo packages.
 
