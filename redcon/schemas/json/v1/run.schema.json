@@ -32,6 +32,11 @@
     },
     "files_included": { "type": "array", "items": { "type": "string" } },
     "files_skipped": { "type": "array", "items": { "type": "string" } },
+    "critical_path_keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Critical-path keywords in effect for this run, used by the forbid_skipped_critical_files policy rule."
+    },
     "budget": {
       "type": "object",
       "required": ["max_tokens", "estimated_input_tokens"],

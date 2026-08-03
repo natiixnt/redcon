@@ -332,6 +332,10 @@ class RunReport:
     # picking the right files.
     context_baseline_tokens: int = 0
     files_scanned: int = 0
+    # The critical-path keywords in effect for this run, carried on the artifact
+    # so a policy check (for example forbid_skipped_critical_files) can see which
+    # files counted as critical without re-deriving the scoring config.
+    critical_path_keywords: list[str] = field(default_factory=list)
     # Which compression profile shaped this run's tier thresholds: "default"
     # or "max" (the max-compression preset). An unknown profile name falls
     # back to "default" - what actually ran.

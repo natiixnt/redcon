@@ -367,6 +367,7 @@ def run_render_stage(
         prompt_cache_key=_prompt_cache_key(serialized_context),
         files_included=compressed.files_included,
         files_skipped=compressed.files_skipped,
+        critical_path_keywords=list(config.score.critical_path_keywords),
         budget={
             "max_tokens": max_tokens,
             "estimated_input_tokens": compressed.estimated_input_tokens,
@@ -492,6 +493,7 @@ def as_json_dict(report: RunReport | AgentPlanReport) -> dict:
         "token_estimator",
         "model_profile",
         "delta",
+        "critical_path_keywords",
     ):
         if not data.get(key):
             data.pop(key, None)

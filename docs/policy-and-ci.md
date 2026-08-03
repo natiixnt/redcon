@@ -16,6 +16,20 @@ Supported checks:
 - max files included
 - max quality risk level
 - minimum estimated savings percentage
+- max context size bytes
+- forbid skipped critical files
+
+`forbid_skipped_critical_files = true` fails the check when a file whose path
+matches the run's `[score] critical_path_keywords` was scanned but skipped
+(ranked out of the budget). The keywords travel on the run artifact, so
+`redcon report <run.json> --policy` enforces the same rule against a recorded
+run. With no critical keywords configured the rule has nothing to match and
+passes. It is off unless set, so existing policies are unaffected.
+
+```toml
+[policy]
+forbid_skipped_critical_files = true
+```
 
 ## Existing GitHub Action
 
