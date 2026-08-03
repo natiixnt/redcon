@@ -1,5 +1,17 @@
 # Example Scenarios
 
+## Service repo (end-to-end)
+
+A small, realistic orders service (API, business logic, persistence, auth,
+events, tests, config) with a walkthrough of `plan`, `pack` and `validate` and
+their deterministic output. See [service-repo/README.md](service-repo/README.md).
+
+```bash
+redcon plan "add an order cancellation endpoint" --repo examples/service-repo
+redcon pack "add an order cancellation endpoint" --repo examples/service-repo --max-tokens 8000
+redcon validate run.json
+```
+
 ## Small feature
 
 ```bash

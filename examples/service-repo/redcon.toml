@@ -1,0 +1,10 @@
+# Redcon configuration for the example orders service.
+
+[score]
+# Auth is the security-critical path here: flag it if a matching file is
+# scanned but skipped, in combination with a policy that forbids that.
+critical_path_keywords = ["auth"]
+
+[cache]
+# Local cache with a one-day freshness window; prune with `redcon cache prune`.
+local_ttl_seconds = 86400

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+run.json
+run.md
+run.html
+.redcon_cache.json
