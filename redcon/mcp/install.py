@@ -1,8 +1,8 @@
 """
 Auto-install Redcon MCP server config into supported AI agents.
 
-Covers Claude Code, Cursor, Windsurf, VS Code, Codex CLI and Gemini CLI.
-JSON based agents get the redcon entry merged into their MCP config file
+Covers Claude Code, Cursor, Windsurf, VS Code, Codex CLI, Gemini CLI and
+Junie CLI. JSON based agents get the redcon entry merged into their MCP config file
 (VS Code uses a "servers" key and a stdio type marker instead of the
 "mcpServers" shape the others share). Codex CLI is configured through
 TOML, where the redcon section is appended or removed textually so the
@@ -34,7 +34,7 @@ DEFAULT_TARGETS = ["claude", "cursor", "windsurf"]
 # Targets registered only when their config location already exists, so
 # `redcon init` does not scatter config for agents the user never
 # installed. Explicitly naming the target still forces the install.
-DETECTED_TARGETS = ["vscode", "codex", "gemini"]
+DETECTED_TARGETS = ["vscode", "codex", "gemini", "junie"]
 
 ALL_TARGETS = DEFAULT_TARGETS + DETECTED_TARGETS
 
@@ -44,6 +44,7 @@ _SERVERS_KEY: dict[str, str] = {
     "cursor": "mcpServers",
     "windsurf": "mcpServers",
     "gemini": "mcpServers",
+    "junie": "mcpServers",
     "vscode": "servers",
 }
 
@@ -62,6 +63,7 @@ def _target_paths(project_root: Path) -> dict[str, list[Path]]:
     VS Code uses a project-scoped .vscode/mcp.json.
     Codex CLI uses ~/.codex/config.toml.
     Gemini CLI uses ~/.gemini/settings.json.
+    Junie CLI uses project .junie/mcp/mcp.json or global ~/.junie/mcp/mcp.json.
     """
     home = Path.home()
     return {
@@ -74,6 +76,10 @@ def _target_paths(project_root: Path) -> dict[str, list[Path]]:
         "vscode": [project_root / ".vscode" / "mcp.json"],
         "codex": [home / ".codex" / "config.toml"],
         "gemini": [home / ".gemini" / "settings.json"],
+        "junie": [
+            project_root / ".junie" / "mcp" / "mcp.json",
+            home / ".junie" / "mcp" / "mcp.json",
+        ],
     }
 
 
@@ -87,6 +93,8 @@ def detect_targets(project_root: Path) -> list[str]:
         targets.append("codex")
     if (home / ".gemini").is_dir():
         targets.append("gemini")
+    if (project_root / ".junie").is_dir() or (home / ".junie").is_dir():
+        targets.append("junie")
     return targets
 
 
