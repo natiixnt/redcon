@@ -80,7 +80,6 @@ Follow-ups (both now done):
 
 ## What is next
 
-The progressive-packer arc above is complete; this document is no longer the
-source of truth for future work. Near-term work (tracked in the launch
-backlog): the free max-compression profile, changed-file targeting for `plan`
-and `pack`, and a per-file scoring breakdown in `plan` output and `run.json`.
+The launch backlog is fully delivered as of 1.14.0. Current work is planned in
+the release notes, and this document remains the record of the completed
+progressive-packer arc.
