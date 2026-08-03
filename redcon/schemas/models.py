@@ -25,10 +25,18 @@ class FileRecord:
     relative_path: str = ""
     repo_label: str = ""
     repo_root: str = ""
+    # Path-derived file role (prod/test/docs/example/config/generated). Computed
+    # once at scan time and cached in the scan index so it is not recomputed per
+    # run. Empty means "not yet classified"; __post_init__ fills it in.
+    role: str = ""
 
     def __post_init__(self) -> None:
         if not self.relative_path:
             self.relative_path = self.path
+        if not self.role:
+            from redcon.scorers.file_roles import classify_file_role
+
+            self.role = classify_file_role(self.path)
 
 
 @dataclass(slots=True)
@@ -41,6 +49,8 @@ class RankedFile:
     historical_score: float = 0.0
     reasons: list[str] = field(default_factory=list)
     score_breakdown: dict[str, float] = field(default_factory=dict)
+    # Path-derived file role carried from the ranked file's FileRecord.
+    role: str = "prod"
 
 
 @dataclass(slots=True)

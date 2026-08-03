@@ -35,7 +35,9 @@ SCAN_INDEX_DB_FILE = ".redcon/scan-index.db"
 
 # v2 added FileRecord.import_specs; bumping discards v1 indexes so they rebuild
 # with import specs populated instead of serving records that lack them.
-INDEX_FORMAT_VERSION = 2
+# v3 added FileRecord.role, cached so file-role classification is not recomputed
+# per run; bumping discards v2 indexes so they rebuild with role populated.
+INDEX_FORMAT_VERSION = 3
 
 _VENV_PREFIXES = (".venv", "venv-")
 
@@ -287,6 +289,7 @@ def _load_scan_index(path: Path, *, settings_fingerprint: str) -> ScanIndexState
                     relative_path=str(record_raw.get("relative_path", "")),
                     repo_label=str(record_raw.get("repo_label", "")),
                     repo_root=str(record_raw.get("repo_root", "")),
+                    role=str(record_raw.get("role", "")),
                 )
             except (TypeError, ValueError):
                 record = None
@@ -388,6 +391,7 @@ def _load_scan_index_sqlite(db_path: Path, *, settings_fingerprint: str) -> Scan
                         relative_path=str(rd.get("relative_path", "")),
                         repo_label=str(rd.get("repo_label", "")),
                         repo_root=str(rd.get("repo_root", "")),
+                        role=str(rd.get("role", "")),
                     )
                 except (TypeError, ValueError, KeyError):
                     record = None

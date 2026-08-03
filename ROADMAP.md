@@ -51,7 +51,7 @@ Delivered in `3ad9611`.
 
 ---
 
-## Phase 3 - File-role priors - Done (two minor follow-ups open)
+## Phase 3 - File-role priors - Done
 
 Delivered in `04571b4`, `02d31bd`, and `840574e`.
 
@@ -65,14 +65,16 @@ Delivered in `04571b4`, `02d31bd`, and `840574e`.
   `test_role_multipliers_lower_docs_and_examples`,
   `test_role_keyword_override_boosts_test_files`.
 
-Open follow-ups (minor, not blocking):
+Follow-ups (both now done):
 
-1. The computed role is not stored on `RankedFile`, so it is not visible to
-   downstream consumers or `run.json`.
-2. The role is recomputed on every score run rather than cached in the scan
-   index. `840574e` added an `lru_cache` to `classify_file_role`, which removes
-   most of the repeated cost, so this is an optimization rather than a
-   correctness gap.
+1. The computed role is stored on `RankedFile` and serialized into `run.json`,
+   plan `run.json` and the human plan view (as a `[role]` tag). `FileRecord`
+   carries a `role` field; `_serialize_ranked_file` emits it.
+2. The role is cached in the scan index rather than recomputed per run.
+   `FileRecord.role` is classified once at scan time and persisted, so reloaded
+   records reuse it (`classify_file_role` still backstops empty roles).
+   `INDEX_FORMAT_VERSION` was bumped to 3 so older indexes rebuild with the role
+   populated.
 
 ---
 

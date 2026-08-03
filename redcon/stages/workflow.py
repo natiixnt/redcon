@@ -62,6 +62,7 @@ def _serialize_ranked_file(item: RankedFile) -> dict:
         "historical_score": item.historical_score,
         "reasons": item.reasons,
         "line_count": item.file.line_count,
+        "role": item.role,
         "score_breakdown": {k: item.score_breakdown[k] for k in sorted(item.score_breakdown)},
     }
     if item.file.repo_label:
