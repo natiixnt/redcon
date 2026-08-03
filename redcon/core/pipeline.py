@@ -128,7 +128,12 @@ def run_plan(
         scanned_repos = []
     telemetry.emit("scan_completed", scanned_files=len(files), scanned_repos=len(scanned_repos))
     ranked = run_score_stage(
-        task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins, changed_files=changed_files
+        task,
+        files,
+        prepared_cfg,
+        repo=target_repo,
+        plugins=resolved_plugins,
+        changed_files=changed_files,
     )
     telemetry.emit(
         "scoring_completed",
@@ -433,7 +438,12 @@ def run_pack(
         scanned_repos = []
     telemetry.emit("scan_completed", scanned_files=len(files), scanned_repos=len(scanned_repos))
     ranked = run_score_stage(
-        task, files, prepared_cfg, repo=target_repo, plugins=resolved_plugins, changed_files=changed_files
+        task,
+        files,
+        prepared_cfg,
+        repo=target_repo,
+        plugins=resolved_plugins,
+        changed_files=changed_files,
     )
     ranked_count = len(ranked)
     telemetry.emit(
