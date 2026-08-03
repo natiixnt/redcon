@@ -26,3 +26,9 @@ This repository includes:
 The workflow can run in pull requests or `workflow_dispatch`, produce Markdown summaries, upload artifacts, and fail on strict policy violations.
 
 See [github-action.md](github-action.md).
+
+## Copy-paste CI recipes
+
+For standalone, copy-paste GitHub Actions workflows - targeting a pull
+request's changed files with `--changed`, and a strict policy gate - covering
+both `pull_request` and `workflow_dispatch`, see [ci-recipes.md](ci-recipes.md).
