@@ -158,3 +158,24 @@ def test_doctor_json_matches_exit_code(tmp_path: Path) -> None:
     fails = sum(1 for c in data["checks"] if c["status"] == "fail")
     # A clean tmp repo has no failures, and the report agrees.
     assert fails == report.failures == 0
+
+
+def test_doctor_survives_broken_config(tmp_path: Path) -> None:
+    # An unparseable redcon.toml must not crash doctor: the config check reports
+    # the failure and the cache check skips gracefully rather than raising.
+    _write(tmp_path / "redcon.toml", "[cache\nthis is not valid toml =\n")
+    report = run_doctor(tmp_path)  # must not raise
+    config_check = next(c for c in report.checks if c.name == "config")
+    assert config_check.status == "fail"
+    cache_check = next(c for c in report.checks if c.name == "cache")
+    assert cache_check.status == "info"
+    assert "config could not be loaded" in cache_check.message
+    assert report.failures >= 1
+
+
+def test_cli_doctor_exit_1_on_broken_config(tmp_path: Path) -> None:
+    from redcon.cli import build_parser
+
+    _write(tmp_path / "redcon.toml", "[cache\nbad =\n")
+    args = build_parser().parse_args(["doctor", "--repo", str(tmp_path)])
+    assert int(args.func(args)) == 1
