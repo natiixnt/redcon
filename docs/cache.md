@@ -1,6 +1,6 @@
 # Cache
 
-Redcon is local-first by default. The open-source build ships cache backend abstractions so the pack pipeline can stay stable as teams add stricter trust boundaries or future shared cache integrations.
+Redcon is local-first by default. The source-available build ships cache backend abstractions so the pack pipeline can stay stable as teams add stricter trust boundaries or future shared cache integrations.
 
 ## Built-in Backends
 

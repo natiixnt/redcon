@@ -1,7 +1,7 @@
 # How the Numbers Are Measured
 
 Every savings number redcon publishes is reproducible on this repository with
-the open source CLI. This page shows the exact procedure, the latest measured
+the source-available CLI. This page shows the exact procedure, the latest measured
 run, and what the numbers do and do not claim.
 
 ## Reproduce it in 60 seconds

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "redcon"
-version = "1.11.4"
+version = "1.12.0"
 description = "Deterministic context budgeting for coding-agent workflows"
 readme = "README.md"
 keywords = [
@@ -19,7 +19,7 @@ keywords = [
     "token-optimization",
 ]
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = "FSL-1.1-MIT"
 authors = [{ name = "Natalia Szczepanik" }]
 dependencies = []
 

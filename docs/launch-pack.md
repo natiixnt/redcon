@@ -23,7 +23,7 @@ During a broad service refactor, the team runs `benchmark` to compare naive, top
 
 ### Tweet
 
-Redcon is open-source infrastructure for token-aware coding-agent workflows: deterministic context packing, cache reuse, strict policy gates, diff + benchmark artifacts, and a reusable Python API. Stop sending your whole repo to the model.
+Redcon is source-available infrastructure for token-aware coding-agent workflows: deterministic context packing, cache reuse, strict policy gates, diff + benchmark artifacts, and a reusable Python API. Stop sending your whole repo to the model.
 
 ### Hacker News Description
 

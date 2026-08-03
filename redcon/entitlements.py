@@ -10,7 +10,7 @@ Design:
   private key never leaves redcon-cloud, so Pro works on a plane and never
   phones home.
 - A license is UNFORGEABLE without the private key, so "holds a valid license"
-  is proof of purchase - even though the local gate itself, being open source,
+  is proof of purchase - even though the local gate itself, being source-available,
   can always be patched out by a determined user. The real paid value lives
   server-side in redcon-cloud; the local gate only stops casual bypass, which
   is the honest ceiling for any open-core license.
