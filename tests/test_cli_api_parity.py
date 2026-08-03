@@ -9,6 +9,7 @@ the deterministic output on equivalent inputs.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from redcon.cli import build_parser
@@ -29,6 +30,10 @@ def _normalize(obj: object) -> object:
     if isinstance(obj, list):
         return [_normalize(v) for v in obj]
     return obj
+
+
+def _strip_render_time(markdown: str) -> str:
+    return re.sub(r"_Rendered in [\d.]+ ms_", "_Rendered in N ms_", markdown)
 
 
 def _write(path: Path, content: str) -> None:
@@ -127,4 +132,6 @@ def test_report_parity(tmp_path: Path) -> None:
     assert _run_cli(["report", str(run_path), "--out", str(md_out)]) == 0
     cli_markdown = md_out.read_text()
 
-    assert api_markdown == cli_markdown
+    # The renderer appends a freshly measured "_Rendered in X.X ms_" footer, so
+    # drop it before comparing the deterministic report body.
+    assert _strip_render_time(api_markdown) == _strip_render_time(cli_markdown)
