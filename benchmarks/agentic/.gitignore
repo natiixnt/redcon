@@ -1,0 +1,4 @@
+# Ephemeral MCP configs written per run by agent_arm.py (absolute paths inside).
+results/**/mcp_*.json
+# Scratch worktrees, if ever placed under results.
+results/**/wt-*/
