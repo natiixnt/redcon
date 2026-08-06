@@ -51,6 +51,24 @@ the IDE or agent session after installing so it picks up the new tools.
 Every pack triggered through MCP lands in `.redcon/runs/`, so the
 VS Code extension picks it up automatically.
 
+### Determinism
+
+Packing is deterministic and cache-stable: the same task against the same
+repository state produces byte-identical tool output and the same
+`prompt_cache_key`, both across repeated calls and across a fresh server
+process. The key is a hash of the ordered packed content, so an edit to a file
+that is not part of the pack leaves it unchanged, while an edit to a file that
+is part of it produces a new key. The end-to-end proof spawns the real stdio
+server and asserts all of this:
+
+```bash
+pip install 'redcon[mcp]'
+pytest -m e2e tests/test_mcp_determinism.py
+```
+
+These tests are deselected from the default run (they spawn subprocesses); run
+them explicitly with `-m e2e`.
+
 ## Claude Code hooks
 
 No extra dependencies needed:

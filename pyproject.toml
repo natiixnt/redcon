@@ -109,3 +109,10 @@ exclude_lines = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# e2e tests spawn real subprocesses (the MCP stdio server) and are deselected
+# from the default run; execute them explicitly with `pytest -m e2e`.
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: end-to-end tests that spawn real subprocesses (deselected by default)",
+    "slow: slow tests",
+]
