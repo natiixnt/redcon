@@ -227,6 +227,44 @@ def test_metrics_and_report_render(tmp_path: Path) -> None:
     assert "# Agentic Context Evaluation" in markdown
     assert "Budget curve" in markdown
     assert "Risk calibration" in markdown
+    # Without tasks, the distinguishability block is absent.
+    assert "phrasing_distinguishability" not in summary
+    assert "Phrasing distinguishability" not in markdown
+
+
+def test_phrasing_distinguishability_counts_and_renders(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_fixture(repo)
+    tasks = [t.to_json() for t in corpus.build_tasks(repo, "fixture", max_tasks=50)]
+
+    dist = metrics.phrasing_distinguishability(tasks)
+    assert dist["total"] == len(tasks)
+    # The timeout-parsing fix names parse_timeout, so medium strips it and differs.
+    assert dist["medium_differs_precise"] >= 1
+    assert dist["medium_differs_precise"] <= dist["total"]
+    assert dist["by_repo"]["fixture"]["total"] == len(tasks)
+
+    # summarize threads the block through only when tasks are supplied, and the
+    # report renders it with the honest-CI caveat.
+    records = [
+        {
+            "repo": "fixture",
+            "sha": t["sha"],
+            "phrasing": "precise",
+            "budget": 12_000,
+            "file_hits": 1.0,
+            "region_containment": 0.5,
+            "input_tokens": 4000,
+            "risk": "medium",
+        }
+        for t in tasks
+    ]
+    summary = metrics.summarize(records, tasks=tasks)
+    assert summary["phrasing_distinguishability"] == dist
+    markdown = report.render(summary, errors=0)
+    assert "Phrasing distinguishability" in markdown
+    assert "medium differs from precise" in markdown
 
 
 def test_bootstrap_ci_is_deterministic() -> None:

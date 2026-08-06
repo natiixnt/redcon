@@ -50,7 +50,7 @@ def main() -> int:
     print(f"wrote {total} records to {results_path}")
 
     valid, errors = metrics.load_results(results_path)
-    summary = metrics.summarize(valid)
+    summary = metrics.summarize(valid, tasks=tasks)
     (args.out_dir / "REPORT.md").write_text(report.render(summary, errors=len(errors)), encoding="utf-8")
     print(f"valid runs: {len(valid)}, errors: {len(errors)}")
     print(f"overall file_hits: {summary['overall']['file_hits']}")

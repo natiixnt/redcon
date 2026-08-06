@@ -106,9 +106,48 @@ def budget_curve(records: list[dict]) -> list[dict]:
     return curve
 
 
-def summarize(records: list[dict]) -> dict:
-    """Full aggregate: overall, per-repo/budget/phrasing, risk calibration, curve."""
+def phrasing_distinguishability(tasks: list[dict]) -> dict:
+    """How many tasks have phrasings that actually differ from one another.
+
+    The medium phrasing strips file and symbol names from the precise subject,
+    so a subject that carries none of those collapses to medium == precise. The
+    by-phrasing means then average over tasks where the phrasings were identical
+    by construction, which understates the true sensitivity to wording. Counting
+    the distinguishable subset keeps those confidence intervals honest: any
+    precise-vs-medium gap can only originate from the tasks reported here.
+    """
+    total = len(tasks)
+    medium_differs = 0
+    all_three_distinct = 0
+    by_repo: dict[str, dict[str, int]] = {}
+    for task in tasks:
+        phrasings = task.get("phrasings", {})
+        precise = phrasings.get("precise")
+        medium = phrasings.get("medium")
+        vague = phrasings.get("vague")
+        differs = medium is not None and medium != precise
+        distinct = differs and vague not in (precise, medium)
+        medium_differs += int(differs)
+        all_three_distinct += int(distinct)
+        bucket = by_repo.setdefault(str(task.get("repo", "?")), {"total": 0, "medium_differs": 0})
+        bucket["total"] += 1
+        bucket["medium_differs"] += int(differs)
     return {
+        "total": total,
+        "medium_differs_precise": medium_differs,
+        "all_three_distinct": all_three_distinct,
+        "by_repo": dict(sorted(by_repo.items())),
+    }
+
+
+def summarize(records: list[dict], *, tasks: list[dict] | None = None) -> dict:
+    """Full aggregate: overall, per-repo/budget/phrasing, risk calibration, curve.
+
+    When *tasks* (the corpus) is supplied, a phrasing-distinguishability block is
+    added so the by-phrasing means can be read against how many tasks actually
+    had distinct wordings.
+    """
+    summary = {
         "runs": len(records),
         "overall": _metric_summary(records),
         "by_repo": _grouped(records, "repo"),
@@ -117,3 +156,6 @@ def summarize(records: list[dict]) -> dict:
         "risk_calibration": risk_calibration(records),
         "budget_curve": budget_curve(records),
     }
+    if tasks is not None:
+        summary["phrasing_distinguishability"] = phrasing_distinguishability(tasks)
+    return summary
