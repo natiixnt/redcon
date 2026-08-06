@@ -52,6 +52,18 @@ The medium phrasing only differs from precise when the subject names a file or s
 | httpx | 25 | 70 |
 | redcon | 7 | 70 |
 
+### Caveats
+
+- The vague phrasing is derived from the change itself: its template names
+  the directory the commit touched. Its file-hits figure is therefore an
+  upper bound. A genuinely vague request that names no area would be harder,
+  so the vague rows measure area-informed prompts, not robustness to vague
+  wording as such.
+- The medium phrasing is identical to precise for 144/210 tasks
+  (it only differs when the subject names a file or symbol to strip), so the
+  precise-vs-medium comparison rests on the distinguishable subset counted
+  above, not on the full corpus.
+
 ## Risk calibration
 
 A calibrated risk should show lower coverage at higher risk.

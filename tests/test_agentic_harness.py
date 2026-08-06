@@ -265,6 +265,11 @@ def test_phrasing_distinguishability_counts_and_renders(tmp_path: Path) -> None:
     markdown = report.render(summary, errors=0)
     assert "Phrasing distinguishability" in markdown
     assert "medium differs from precise" in markdown
+    # The Caveats flag the vague-phrasing oracle leak and the medium collapse.
+    assert "### Caveats" in markdown
+    assert "vague phrasing is derived from the change itself" in markdown
+    identical = dist["total"] - dist["medium_differs_precise"]
+    assert f"identical to precise for {identical}/{dist['total']} tasks" in markdown
 
 
 def test_bootstrap_ci_is_deterministic() -> None:
