@@ -25,6 +25,32 @@ def _metric_table(title: str, groups: dict[str, dict]) -> list[str]:
     return lines
 
 
+def _caveats(summary: dict) -> list[str]:
+    """Caveats that stop the by-phrasing rows from being read as more than they
+    are. These are properties of how the corpus is built, not run outcomes, so
+    they live in the template and survive regeneration."""
+    lines = ["### Caveats", ""]
+    lines.append(
+        "- The vague phrasing is derived from the change itself: its template names\n"
+        "  the directory the commit touched. Its file-hits figure is therefore an\n"
+        "  upper bound. A genuinely vague request that names no area would be harder,\n"
+        "  so the vague rows measure area-informed prompts, not robustness to vague\n"
+        "  wording as such."
+    )
+    distinguish = summary.get("phrasing_distinguishability")
+    if distinguish:
+        total = distinguish["total"]
+        identical = total - distinguish["medium_differs_precise"]
+        lines.append(
+            f"- The medium phrasing is identical to precise for {identical}/{total} tasks\n"
+            "  (it only differs when the subject names a file or symbol to strip), so the\n"
+            "  precise-vs-medium comparison rests on the distinguishable subset counted\n"
+            "  above, not on the full corpus."
+        )
+    lines.append("")
+    return lines
+
+
 def render(summary: dict, *, errors: int = 0) -> str:
     lines: list[str] = [
         "# Agentic Context Evaluation",
@@ -73,6 +99,8 @@ def render(summary: dict, *, errors: int = 0) -> str:
         for repo, counts in distinguish["by_repo"].items():
             lines.append(f"| {repo} | {counts['medium_differs']} | {counts['total']} |")
         lines.append("")
+
+    lines += _caveats(summary)
 
     lines += ["## Risk calibration", ""]
     lines.append("A calibrated risk should show lower coverage at higher risk.")
