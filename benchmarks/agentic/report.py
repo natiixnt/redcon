@@ -49,6 +49,31 @@ def render(summary: dict, *, errors: int = 0) -> str:
     lines += _metric_table("By budget", summary["by_budget"])
     lines += _metric_table("By phrasing", summary["by_phrasing"])
 
+    distinguish = summary.get("phrasing_distinguishability")
+    if distinguish:
+        total = distinguish["total"]
+        differs = distinguish["medium_differs_precise"]
+        distinct = distinguish["all_three_distinct"]
+        share = differs / total if total else 0.0
+        lines += ["### Phrasing distinguishability", ""]
+        lines.append(
+            "The medium phrasing only differs from precise when the subject "
+            "names a file or symbol to strip, so a precise-vs-medium gap can "
+            "come only from the distinguishable subset below. Read the by-"
+            "phrasing means with this in mind."
+        )
+        lines.append("")
+        lines.append(
+            f"- Tasks where medium differs from precise: {differs}/{total} ({_pct(share)})."
+        )
+        lines.append(f"- Tasks where all three phrasings are distinct: {distinct}/{total}.")
+        lines.append("")
+        lines.append("| Repository | Medium differs from precise | Tasks |")
+        lines.append("|---|---|---|")
+        for repo, counts in distinguish["by_repo"].items():
+            lines.append(f"| {repo} | {counts['medium_differs']} | {counts['total']} |")
+        lines.append("")
+
     lines += ["## Risk calibration", ""]
     lines.append("A calibrated risk should show lower coverage at higher risk.")
     lines.append("")
