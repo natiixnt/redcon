@@ -32,8 +32,12 @@ draws on subscription usage, so it is run deliberately and never in CI. The
 dollar figures are the CLI's list-price accounting, a reported metric, not a
 per-call charge on this account.
 
-    python benchmarks/agentic/agent_arm.py --limit 1 --repeats 1   # calibration
-    python benchmarks/agentic/agent_arm.py --pilot                 # full pilot
+    # small-repo pilot (night 1):
+    python benchmarks/agentic/agent_arm.py --pilot
+    # context-heavy night 2, pass 1 (arms A and B, precise):
+    python benchmarks/agentic/agent_arm.py --tasks benchmarks/agentic/tasks-heavy.jsonl \
+        --arms redcon,baseline --phrasing precise --repeats 3 \
+        --cache ~/.cache/redcon-agentic-heavy --out-dir benchmarks/agentic/results/agent-heavy
 """
 
 from __future__ import annotations
@@ -51,7 +55,20 @@ _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent.parent  # the redcon checkout that hosts this harness
 PILOT_TASKS = _HERE / "pilot-tasks.txt"  # the pinned, reviewable pilot subset
 
-ARMS = ("redcon", "baseline")
+# Three arms. A and Ag both expose the redcon MCP server; Ag adds one neutral
+# line of guidance to the prompt. B has no MCP at all. The A-vs-Ag gap isolates
+# the cost of the agent not adopting the tools; the Ag-vs-B gap isolates the
+# value of the pack once the agent does use it.
+GUIDANCE = (
+    "This repository has redcon MCP tools available; calling redcon_rank or "
+    "redcon_budget first is usually cheaper than searching manually."
+)
+ARM_SPECS = {
+    "redcon": {"mcp": "redcon", "guided": False},  # A
+    "redcon_guided": {"mcp": "redcon", "guided": True},  # Ag
+    "baseline": {"mcp": "baseline", "guided": False},  # B
+}
+ARMS = ("redcon", "redcon_guided", "baseline")
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 MAX_TURNS = 30
@@ -181,11 +198,12 @@ def _select_by_shas(tasks: list[dict], shas: list[str]) -> list[dict]:
     return [by_sha[sha] for sha in shas if sha in by_sha]
 
 
-def agent_prompt(task: dict) -> str:
-    """The instruction handed to the agent. Identical across arms, so the only
-    difference between arms is which tools are on offer, never the wording."""
-    subject = task["phrasings"]["precise"]
-    return (
+def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False) -> str:
+    """The instruction handed to the agent. The wording is identical across arms
+    except for the optional guidance line (arm Ag), so the tool surface and that
+    single line are the only differences between arms."""
+    subject = task["phrasings"][phrasing]
+    prompt = (
         "You are working inside a git repository checked out at a specific commit. "
         "Implement this change by editing the necessary source files directly:\n\n"
         f"    {subject}\n\n"
@@ -193,13 +211,17 @@ def agent_prompt(task: dict) -> str:
         "not run the test suite. When you are finished, reply with a one-line summary "
         "of what you changed."
     )
+    if guided:
+        prompt += "\n\n" + GUIDANCE
+    return prompt
 
 
-def build_command(arm: str, prompt: str, mcp_config: Path) -> list[str]:
+def build_command(prompt: str, mcp_config: Path) -> list[str]:
     """The full headless CLI command for one run.
 
-    Both arms pass a strict MCP config so the tool surface is fully controlled:
-    the redcon arm gets the redcon server, the baseline arm gets an empty one.
+    Output is stream-json (with --verbose) so the whole transcript is captured
+    and per-run tool usage can be counted; the arm's guidance, if any, is already
+    baked into the prompt. The strict MCP config fully controls the tool surface.
     """
     return [
         claude_bin(),
@@ -210,7 +232,8 @@ def build_command(arm: str, prompt: str, mcp_config: Path) -> list[str]:
         "--max-turns",
         str(MAX_TURNS),
         "--output-format",
-        "json",
+        "stream-json",
+        "--verbose",
         "--permission-mode",
         "bypassPermissions",
         "--mcp-config",
@@ -219,24 +242,46 @@ def build_command(arm: str, prompt: str, mcp_config: Path) -> list[str]:
     ]
 
 
-def _parse_result(stdout: str) -> dict:
-    """Pull the metric fields out of the CLI's --output-format json result."""
-    data = json.loads(stdout)
-    usage = data.get("modelUsage", {}).get(CANONICAL_MODEL, {})
-    return {
-        "is_error": bool(data.get("is_error", False)),
-        "terminal_reason": data.get("terminal_reason"),
-        "num_turns": data.get("num_turns"),
-        "cost_usd": data.get("total_cost_usd"),
-        "duration_ms": data.get("duration_ms"),
-        "duration_api_ms": data.get("duration_api_ms"),
-        "input_tokens": usage.get("inputTokens"),
-        "output_tokens": usage.get("outputTokens"),
-        "cache_read_tokens": usage.get("cacheReadInputTokens"),
-        "cache_creation_tokens": usage.get("cacheCreationInputTokens"),
-        "permission_denials": len(data.get("permission_denials", [])),
-        "result_summary": (data.get("result") or "")[:280],
-    }
+def parse_stream(stdout: str) -> tuple[dict, dict[str, int]]:
+    """Parse a stream-json transcript into (metrics, tool_call_counts).
+
+    Metrics come from the final ``result`` event; the counts tally every
+    ``tool_use`` block across the assistant turns, so ``mcp__redcon__*`` calls
+    can be reported as a first-class adoption metric.
+    """
+    metrics: dict = {}
+    counts: dict[str, int] = {}
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "result":
+            usage = event.get("modelUsage", {}).get(CANONICAL_MODEL, {})
+            metrics = {
+                "is_error": bool(event.get("is_error", False)),
+                "terminal_reason": event.get("terminal_reason"),
+                "num_turns": event.get("num_turns"),
+                "cost_usd": event.get("total_cost_usd"),
+                "duration_ms": event.get("duration_ms"),
+                "input_tokens": usage.get("inputTokens"),
+                "output_tokens": usage.get("outputTokens"),
+                "cache_read_tokens": usage.get("cacheReadInputTokens"),
+                "cache_creation_tokens": usage.get("cacheCreationInputTokens"),
+                "permission_denials": len(event.get("permission_denials", [])),
+                "result_summary": (event.get("result") or "")[:280],
+            }
+        for block in (event.get("message") or {}).get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                counts[block.get("name", "?")] = counts.get(block.get("name", "?"), 0) + 1
+    return metrics, counts
+
+
+def _redcon_calls(counts: dict[str, int]) -> int:
+    return sum(v for name, v in counts.items() if str(name).startswith("mcp__redcon__"))
 
 
 def _files_edited(worktree: Path) -> list[str]:
@@ -265,26 +310,33 @@ def run_one(
     arm: str,
     repeat: int,
     *,
+    phrasing: str,
     repo_path: Path,
     worktree: Path,
     mcp_config: Path,
+    transcript_dir: Path | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     dry_run: bool = False,
 ) -> dict:
     """Check out the parent state, run one agent, and return its record.
 
-    ``repeat`` is the repetition index for variance, not an RNG seed.
+    ``repeat`` is the repetition index for variance, not an RNG seed. The whole
+    stream-json transcript is saved (if ``transcript_dir`` is given) and the
+    per-run ``mcp__redcon__*`` call count is recorded.
     """
+    spec = ARM_SPECS[arm]
     base = {
         "repo": task["repo"],
         "sha": task["sha"],
         "arm": arm,
+        "phrasing": phrasing,
         "repeat": repeat,
+        "guided": spec["guided"],
         "stratum": task.get("stratum"),
         "changed_size": _task_size(task),
     }
-    prompt = agent_prompt(task)
-    command = build_command(arm, prompt, mcp_config)
+    prompt = agent_prompt(task, phrasing, guided=spec["guided"])
+    command = build_command(prompt, mcp_config)
     if dry_run:
         return {**base, "dry_run": True, "command": command}
 
@@ -301,22 +353,28 @@ def run_one(
         )
         elapsed = round(time.monotonic() - started, 3)
         edited = _files_edited(worktree)
-        try:
-            parsed = _parse_result(proc.stdout)
-        except (json.JSONDecodeError, ValueError):
+        if transcript_dir is not None:
+            transcript_dir.mkdir(parents=True, exist_ok=True)
+            name = f"{task['sha'][:9]}-{arm}-{phrasing}-r{repeat}.jsonl"
+            (transcript_dir / name).write_text(proc.stdout, encoding="utf-8")
+        metrics, tool_counts = parse_stream(proc.stdout)
+        if not metrics:
             return {
                 **base,
-                "error": "unparseable CLI output",
+                "error": "no result event in stream",
                 "returncode": proc.returncode,
                 "stderr_tail": proc.stderr[-500:],
                 "elapsed_wall": elapsed,
             }
         return {
             **base,
-            **parsed,
+            **metrics,
             "model": CANONICAL_MODEL,
             "max_turns": MAX_TURNS,
             "elapsed_wall": elapsed,
+            "redcon_tool_calls": _redcon_calls(tool_counts),
+            "tool_calls": sum(tool_counts.values()),
+            "tool_counts": tool_counts,
             "files_edited": edited,
             "changed_files": list(task["changed_files"]),
             "file_hits": round(_file_hits(task["changed_files"], edited), 6),
@@ -334,11 +392,13 @@ def run_pilot(
     *,
     arms: tuple[str, ...],
     repeats: int,
+    phrasing: str,
     mcp_configs: dict[str, Path],
     worktree_root: Path,
+    transcript_dir: Path | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     dry_run: bool = False,
-    skip: set[tuple[str, str, int]] | None = None,
+    skip: set[tuple[str, str, str, int]] | None = None,
     max_runs: int = 0,
 ) -> Iterator[dict]:
     """Yield a record for every task x arm x repeat, one fresh worktree per run.
@@ -359,7 +419,7 @@ def run_pilot(
             continue
         for repeat in range(repeats):
             for arm in arms:
-                if (task["sha"], arm, repeat) in skip:
+                if (task["sha"], arm, phrasing, repeat) in skip:
                     continue
                 if max_runs and launched >= max_runs:
                     return
@@ -370,9 +430,11 @@ def run_pilot(
                         task,
                         arm,
                         repeat,
+                        phrasing=phrasing,
                         repo_path=repo_path,
                         worktree=worktree,
-                        mcp_config=mcp_configs[arm],
+                        mcp_config=mcp_configs[ARM_SPECS[arm]["mcp"]],
+                        transcript_dir=transcript_dir,
                         timeout=timeout,
                         dry_run=dry_run,
                     )
@@ -381,6 +443,7 @@ def run_pilot(
                         "repo": task["repo"],
                         "sha": task["sha"],
                         "arm": arm,
+                        "phrasing": phrasing,
                         "repeat": repeat,
                         "error": f"{type(exc).__name__}: {exc}",
                     }
@@ -409,9 +472,13 @@ def _looks_rate_limited(record: dict) -> bool:
     return any(signal in haystack for signal in signals)
 
 
-def completed_keys(out_path: Path) -> set[tuple[str, str, int]]:
-    """(sha, arm, repeat) of runs already recorded successfully, for resume."""
-    done: set[tuple[str, str, int]] = set()
+def completed_keys(out_path: Path) -> set[tuple[str, str, str, int]]:
+    """(sha, arm, phrasing, repeat) of runs already recorded, for resume.
+
+    Phrasing is part of the key so a medium-phrasing addendum does not collide
+    with the precise runs of the same arm.
+    """
+    done: set[tuple[str, str, str, int]] = set()
     if not out_path.exists():
         return done
     with out_path.open(encoding="utf-8") as handle:
@@ -421,7 +488,14 @@ def completed_keys(out_path: Path) -> set[tuple[str, str, int]]:
             record = json.loads(line)
             if "error" in record or record.get("dry_run"):
                 continue
-            done.add((record.get("sha"), record.get("arm"), int(record.get("repeat", 0))))
+            done.add(
+                (
+                    record.get("sha"),
+                    record.get("arm"),
+                    record.get("phrasing", "precise"),
+                    int(record.get("repeat", 0)),
+                )
+            )
     return done
 
 
@@ -437,6 +511,7 @@ def main() -> int:
     sys.path.insert(0, str(_REPO_ROOT))
     from corpus import read_tasks_jsonl  # noqa: PLC0415 - deferred, needs sys.path
     from repos import REPOS  # noqa: PLC0415
+    from repos_heavy import REPOS_HEAVY  # noqa: PLC0415
     from runner import ensure_clone  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -446,6 +521,7 @@ def main() -> int:
     parser.add_argument("--worktrees", type=Path, default=Path.home() / ".cache" / "redcon-agent-wt")
     parser.add_argument("--arms", default=",".join(ARMS), help="comma-separated subset of arms")
     parser.add_argument("--repeats", type=int, default=3, help="repetitions per task/arm (variance, not RNG seeds)")
+    parser.add_argument("--phrasing", default="precise", choices=("precise", "medium", "vague"))
     parser.add_argument("--limit", type=int, default=0, help="cap number of tasks (0 = all)")
     parser.add_argument(
         "--task-list",
@@ -475,15 +551,19 @@ def main() -> int:
         tasks = all_tasks
     if args.limit:
         tasks = tasks[: args.limit]
-    # Tag stratum from the full-corpus terciles, so records carry it either way.
-    tasks = [{**task, "stratum": stratum_of.get(task["sha"])} for task in tasks]
+    # Keep a task's own stratum if the corpus pinned one (heavy corpus does);
+    # otherwise tag from the terciles of the loaded corpus.
+    tasks = [{**task, "stratum": task.get("stratum") or stratum_of.get(task["sha"])} for task in tasks]
 
+    specs = {spec.name: spec for spec in (*REPOS, *REPOS_HEAVY)}
     repo_paths: dict[str, Path] = {}
-    for spec in REPOS:
-        if spec.name == "redcon":
-            repo_paths[spec.name] = _REPO_ROOT
-        else:
-            repo_paths[spec.name] = ensure_clone(spec.name, spec.url, spec.ref, args.cache)
+    for name in sorted({task["repo"] for task in tasks}):
+        spec = specs.get(name)
+        if spec is None:
+            continue  # unknown repo yields a per-task error record downstream
+        repo_paths[name] = _REPO_ROOT if name == "redcon" else ensure_clone(
+            spec.name, spec.url, spec.ref, args.cache
+        )
 
     venv_python = os.environ.get("REDCON_VENV_PYTHON") or sys.executable
     mcp_configs = write_mcp_configs(args.out_dir, venv_python=venv_python, redcon_root=_REPO_ROOT)
@@ -498,8 +578,10 @@ def main() -> int:
         repo_paths,
         arms=arms,
         repeats=args.repeats,
+        phrasing=args.phrasing,
         mcp_configs=mcp_configs,
         worktree_root=args.worktrees,
+        transcript_dir=args.out_dir / "transcripts",
         timeout=args.timeout,
         dry_run=args.dry_run,
         skip=skip,
@@ -518,8 +600,9 @@ def main() -> int:
             print(f"[error] {record['repo']} {record['sha'][:9]} {tag}: {record['error']}")
         else:
             print(
-                f"[ok] {record['repo']} {record['sha'][:9]} {tag} rep{record['repeat']} "
-                f"turns={record.get('num_turns')} cost=${record.get('cost_usd')} "
+                f"[ok] {record['repo']} {record['sha'][:9]} {tag}/{record.get('phrasing')} "
+                f"rep{record['repeat']} turns={record.get('num_turns')} "
+                f"cost=${record.get('cost_usd')} redcon_calls={record.get('redcon_tool_calls')} "
                 f"file_hits={record.get('file_hits')}"
             )
     print(f"wrote {total} records to {out_path}")

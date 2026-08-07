@@ -47,61 +47,74 @@ def test_write_mcp_configs_isolates_baseline(tmp_path: Path) -> None:
     assert empty["mcpServers"] == {}
 
 
-def test_build_command_differs_only_by_config(tmp_path: Path) -> None:
+def test_arms_map_to_configs_and_guidance() -> None:
+    # A and Ag use the redcon server; B uses the empty one. Only Ag is guided.
+    assert agent_arm.ARM_SPECS["redcon"] == {"mcp": "redcon", "guided": False}
+    assert agent_arm.ARM_SPECS["redcon_guided"] == {"mcp": "redcon", "guided": True}
+    assert agent_arm.ARM_SPECS["baseline"] == {"mcp": "baseline", "guided": False}
+    assert set(agent_arm.ARMS) == {"redcon", "redcon_guided", "baseline"}
+
+
+def test_build_command_uses_stream_json(tmp_path: Path) -> None:
     configs = agent_arm.write_mcp_configs(
         tmp_path, venv_python="/venv/bin/python", redcon_root=Path("/repo")
     )
-    prompt = agent_arm.agent_prompt(_task())
-    redcon_cmd = agent_arm.build_command("redcon", prompt, configs["redcon"])
-    base_cmd = agent_arm.build_command("baseline", prompt, configs["baseline"])
-
-    for cmd in (redcon_cmd, base_cmd):
-        assert "-p" in cmd
-        assert "--strict-mcp-config" in cmd
-        assert cmd[cmd.index("--model") + 1] == agent_arm.MODEL
-        assert cmd[cmd.index("--max-turns") + 1] == str(agent_arm.MAX_TURNS)
-        assert cmd[cmd.index("--permission-mode") + 1] == "bypassPermissions"
-    # The only difference between arms is which MCP config is loaded.
-    assert redcon_cmd[redcon_cmd.index("--mcp-config") + 1] == str(configs["redcon"])
-    assert base_cmd[base_cmd.index("--mcp-config") + 1] == str(configs["baseline"])
+    cmd = agent_arm.build_command("a prompt", configs["redcon"])
+    assert "-p" in cmd
+    assert "--strict-mcp-config" in cmd
+    assert cmd[cmd.index("--output-format") + 1] == "stream-json"
+    assert "--verbose" in cmd  # required for stream-json
+    assert cmd[cmd.index("--model") + 1] == agent_arm.MODEL
+    assert cmd[cmd.index("--max-turns") + 1] == str(agent_arm.MAX_TURNS)
+    assert cmd[cmd.index("--mcp-config") + 1] == str(configs["redcon"])
 
 
-def test_agent_prompt_is_arm_independent() -> None:
-    prompt = agent_arm.agent_prompt(_task())
-    assert "add retry with backoff to the client" in prompt
-    assert "redcon" not in prompt.lower()  # no arm-specific hint biases the run
+def test_agent_prompt_guidance_and_phrasing() -> None:
+    plain = agent_arm.agent_prompt(_task(), "precise")
+    assert "add retry with backoff to the client" in plain
+    assert "redcon" not in plain.lower()  # arm A carries no hint
+    guided = agent_arm.agent_prompt(_task(), "precise", guided=True)
+    assert guided.endswith(agent_arm.GUIDANCE)  # arm Ag appends exactly one line
+    assert "add retry with backoff to the client" in guided
+    medium = agent_arm.agent_prompt(_task(), "medium")
+    assert "add retry with backoff" in medium and "to the client" not in medium
 
 
-def test_parse_result_extracts_usage_and_cost() -> None:
-    stdout = json.dumps(
-        {
-            "is_error": False,
-            "terminal_reason": "completed",
-            "num_turns": 7,
-            "total_cost_usd": 0.42,
-            "duration_ms": 12345,
-            "duration_api_ms": 11000,
-            "permission_denials": [],
-            "result": "Added retry with backoff.",
-            "modelUsage": {
-                "claude-sonnet-5": {
-                    "inputTokens": 120,
-                    "outputTokens": 900,
-                    "cacheReadInputTokens": 50000,
-                    "cacheCreationInputTokens": 8000,
-                }
+def test_parse_stream_extracts_metrics_and_tool_counts() -> None:
+    stream = "\n".join(
+        json.dumps(e)
+        for e in [
+            {"type": "system", "subtype": "init"},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}},
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "tool_use", "name": "mcp__redcon__redcon_rank"}]},
             },
-        }
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}},
+            {
+                "type": "result",
+                "is_error": False,
+                "num_turns": 7,
+                "total_cost_usd": 0.42,
+                "result": "done",
+                "modelUsage": {
+                    "claude-sonnet-5": {
+                        "inputTokens": 120,
+                        "outputTokens": 900,
+                        "cacheReadInputTokens": 50000,
+                        "cacheCreationInputTokens": 8000,
+                    }
+                },
+            },
+        ]
     )
-    parsed = agent_arm._parse_result(stdout)
-    assert parsed["is_error"] is False
-    assert parsed["num_turns"] == 7
-    assert parsed["cost_usd"] == 0.42
-    assert parsed["input_tokens"] == 120
-    assert parsed["output_tokens"] == 900
-    assert parsed["cache_read_tokens"] == 50000
-    assert parsed["cache_creation_tokens"] == 8000
-    assert parsed["result_summary"] == "Added retry with backoff."
+    metrics, counts = agent_arm.parse_stream(stream)
+    assert metrics["num_turns"] == 7
+    assert metrics["cost_usd"] == 0.42
+    assert metrics["input_tokens"] == 120
+    assert metrics["result_summary"] == "done"
+    assert counts == {"Bash": 2, "mcp__redcon__redcon_rank": 1}
+    assert agent_arm._redcon_calls(counts) == 1
 
 
 def test_files_edited_reports_modified_added_and_renamed(tmp_path: Path) -> None:
@@ -143,17 +156,18 @@ def test_completed_keys_reads_only_successful_runs(tmp_path: Path) -> None:
         "\n".join(
             json.dumps(r)
             for r in [
-                {"sha": "a", "arm": "redcon", "repeat": 0, "num_turns": 4},
-                {"sha": "a", "arm": "baseline", "repeat": 0, "error": "timeout"},
-                {"sha": "b", "arm": "redcon", "repeat": 1, "num_turns": 7},
-                {"sha": "c", "arm": "redcon", "repeat": 0, "dry_run": True},
+                {"sha": "a", "arm": "redcon", "phrasing": "precise", "repeat": 0, "num_turns": 4},
+                {"sha": "a", "arm": "baseline", "phrasing": "precise", "repeat": 0, "error": "t"},
+                {"sha": "b", "arm": "redcon", "phrasing": "medium", "repeat": 1, "num_turns": 7},
+                {"sha": "c", "arm": "redcon", "phrasing": "precise", "repeat": 0, "dry_run": True},
             ]
         )
         + "\n",
         encoding="utf-8",
     )
     done = agent_arm.completed_keys(records)
-    assert done == {("a", "redcon", 0), ("b", "redcon", 1)}
+    # Phrasing is part of the key, so precise and medium runs never collide.
+    assert done == {("a", "redcon", "precise", 0), ("b", "redcon", "medium", 1)}
     assert agent_arm.completed_keys(tmp_path / "missing.jsonl") == set()
 
 
@@ -212,14 +226,19 @@ def test_run_one_dry_run_builds_command_without_spawning(tmp_path: Path) -> None
     )
     record = agent_arm.run_one(
         _task(),
-        "redcon",
+        "redcon_guided",
         0,
+        phrasing="precise",
         repo_path=tmp_path,
         worktree=tmp_path / "wt",
         mcp_config=configs["redcon"],
         dry_run=True,
     )
     assert record["dry_run"] is True
-    assert record["arm"] == "redcon"
+    assert record["arm"] == "redcon_guided"
+    assert record["phrasing"] == "precise"
+    assert record["guided"] is True
+    # The guided arm's prompt carries the guidance line in the command.
+    assert any(agent_arm.GUIDANCE in part for part in record["command"])
     assert "--strict-mcp-config" in record["command"]
     assert not (tmp_path / "wt").exists()  # nothing was checked out
