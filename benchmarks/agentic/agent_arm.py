@@ -1,7 +1,7 @@
 """Agent-in-the-loop arm: run the Claude Code CLI headless on each task, with
 and without redcon, and record what each run cost.
 
-Layer 2 of the evaluation. For every task x arm x seed this checks out the
+Layer 2 of the evaluation. For every task x arm x repeat this checks out the
 commit's parent state in a git worktree and runs the CLI headless (``-p``,
 model sonnet, capped turns) to implement the change the task describes. Arm
 ``redcon`` exposes the redcon MCP server (rank/compress/budget/...); arm
@@ -10,13 +10,30 @@ filesystem tools. Each run records the token usage, list-price cost, turn count
 and wall-clock time the CLI reports, plus which files the agent edited versus
 the files the real commit changed.
 
+Pre-registered hypothesis
+-------------------------
+An MCP server adds a roughly fixed per-session cost: its tool schemas sit in the
+cached context whether or not the agent calls them. So redcon is expected to be
+roughly neutral on small, well-localized tasks (where the baseline agent finds
+the files quickly and redcon's schema overhead is not repaid) and to gain on
+context-heavy tasks (where the baseline agent must read many or large files that
+redcon can rank and compress). The pilot therefore covers the diff-size spectrum
+(4 small / 4 medium / 4 large, by global terciles, spread across repos) and
+reports per stratum, so the result shows where the product pays and where it is
+a wash rather than claiming a blanket win.
+
+Note on repeats: ``--repeats`` runs each task/arm N times. These are repetitions
+to gauge run-to-run variance, not RNG seeds; the CLI exposes no seed, so this is
+not a controlled-randomness knob and is named ``repeat`` in the records to keep
+that honest.
+
 Unlike layer 1 this arm is not deterministic (the model is stochastic) and it
 draws on subscription usage, so it is run deliberately and never in CI. The
 dollar figures are the CLI's list-price accounting, a reported metric, not a
 per-call charge on this account.
 
-    python benchmarks/agentic/agent_arm.py --limit 1 --seeds 1   # calibration
-    python benchmarks/agentic/agent_arm.py                       # full pilot
+    python benchmarks/agentic/agent_arm.py --limit 1 --repeats 1   # calibration
+    python benchmarks/agentic/agent_arm.py --pilot                 # full pilot
 """
 
 from __future__ import annotations
@@ -32,6 +49,7 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent.parent  # the redcon checkout that hosts this harness
+PILOT_TASKS = _HERE / "pilot-tasks.txt"  # the pinned, reviewable pilot subset
 
 ARMS = ("redcon", "baseline")
 MODEL = "sonnet"
@@ -94,29 +112,73 @@ def _task_size(task: dict) -> int:
     return span
 
 
-def select_pilot_tasks(tasks: list[dict], *, per_repo: int = 4) -> list[dict]:
-    """Deterministically pick a size-stratified subset, per_repo tasks per repo.
+STRATA = ("small", "medium", "large")
 
-    The calibration showed the arms only diverge on tasks large enough to strain
-    the baseline agent's context, so the pilot spans small-to-large changes in
-    each repo (sampled at even quantiles of the size-sorted list) rather than
-    taking whichever tasks happen to come first.
+
+def _terciles(tasks: list[dict]) -> dict[str, list[dict]]:
+    """Split tasks into small/medium/large thirds by diff size (size then sha)."""
+    ranked = sorted(tasks, key=lambda t: (_task_size(t), t["sha"]))
+    count = len(ranked)
+    first, second = count // 3, 2 * count // 3
+    return {"small": ranked[:first], "medium": ranked[first:second], "large": ranked[second:]}
+
+
+def select_pilot_tasks(tasks: list[dict], *, per_stratum: int = 4) -> list[dict]:
+    """Cover the diff-size spectrum: per_stratum tasks from each size tercile,
+    spread across repositories so no size band is dominated by one repo.
+
+    This deliberately does not weight toward large commits (which would cherry-
+    pick terrain that favours redcon); it samples small, medium and large evenly
+    and reports per stratum. Each returned task carries a ``stratum`` label. The
+    result is deterministic. With three repos and per_stratum=4, each stratum
+    takes one task per repo plus a fourth from a repo that rotates across strata,
+    so the three repos end up evenly represented across the twelve.
     """
-    by_repo: dict[str, list[dict]] = {}
-    for task in tasks:
-        by_repo.setdefault(task["repo"], []).append(task)
+    strata = _terciles(tasks)
+    repos = sorted({t["repo"] for t in tasks})
     picked: list[dict] = []
     seen: set[str] = set()
-    for repo in sorted(by_repo):
-        ranked = sorted(by_repo[repo], key=lambda t: (_task_size(t), t["sha"]))
-        count = len(ranked)
-        for i in range(per_repo):
-            idx = min(count - 1, (2 * i + 1) * count // (2 * per_repo))
-            task = ranked[idx]
+    for stratum_index, name in enumerate(STRATA):
+        by_repo: dict[str, list[dict]] = {}
+        for task in sorted(strata[name], key=lambda t: (_task_size(t), t["sha"])):
+            by_repo.setdefault(task["repo"], []).append(task)
+        chosen: list[dict] = []
+        # one near-median task per repo present in this stratum
+        for repo in repos:
+            group = by_repo.get(repo, [])
+            if group:
+                chosen.append(group[len(group) // 2])
+        # a fourth task from a repo that rotates across strata, next distinct one
+        if repos:
+            extra_repo = repos[stratum_index % len(repos)]
+            chosen_shas = {t["sha"] for t in chosen}
+            for task in by_repo.get(extra_repo, []):
+                if task["sha"] not in chosen_shas:
+                    chosen.append(task)
+                    break
+        for task in chosen[:per_stratum]:
             if task["sha"] not in seen:
                 seen.add(task["sha"])
-                picked.append(task)
+                picked.append({**task, "stratum": name})
     return picked
+
+
+def read_task_list(path: Path) -> list[str]:
+    """SHAs from a task-list file: first whitespace token per line, '#' comments
+    and blank lines ignored. Lets the pilot run a pinned, reviewable subset."""
+    shas: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        shas.append(stripped.split()[0])
+    return shas
+
+
+def _select_by_shas(tasks: list[dict], shas: list[str]) -> list[dict]:
+    """Tasks whose sha is listed, in the order the list gives them."""
+    by_sha = {task["sha"]: task for task in tasks}
+    return [by_sha[sha] for sha in shas if sha in by_sha]
 
 
 def agent_prompt(task: dict) -> str:
@@ -201,7 +263,7 @@ def _file_hits(changed_files: list[str], edited: list[str]) -> float:
 def run_one(
     task: dict,
     arm: str,
-    seed: int,
+    repeat: int,
     *,
     repo_path: Path,
     worktree: Path,
@@ -209,8 +271,18 @@ def run_one(
     timeout: int = DEFAULT_TIMEOUT,
     dry_run: bool = False,
 ) -> dict:
-    """Check out the parent state, run one agent, and return its record."""
-    base = {"repo": task["repo"], "sha": task["sha"], "arm": arm, "seed": seed}
+    """Check out the parent state, run one agent, and return its record.
+
+    ``repeat`` is the repetition index for variance, not an RNG seed.
+    """
+    base = {
+        "repo": task["repo"],
+        "sha": task["sha"],
+        "arm": arm,
+        "repeat": repeat,
+        "stratum": task.get("stratum"),
+        "changed_size": _task_size(task),
+    }
     prompt = agent_prompt(task)
     command = build_command(arm, prompt, mcp_config)
     if dry_run:
@@ -261,7 +333,7 @@ def run_pilot(
     repo_paths: dict[str, Path],
     *,
     arms: tuple[str, ...],
-    seeds: int,
+    repeats: int,
     mcp_configs: dict[str, Path],
     worktree_root: Path,
     timeout: int = DEFAULT_TIMEOUT,
@@ -269,7 +341,7 @@ def run_pilot(
     skip: set[tuple[str, str, int]] | None = None,
     max_runs: int = 0,
 ) -> Iterator[dict]:
-    """Yield a record for every task x arm x seed, one fresh worktree per run.
+    """Yield a record for every task x arm x repeat, one fresh worktree per run.
 
     Runs in *skip* (already recorded) are not repeated, so an interrupted night
     resumes where it left off. A rate-limited run ends the pass: the pilot backs
@@ -285,9 +357,9 @@ def run_pilot(
         if repo_path is None:
             yield {"repo": task["repo"], "sha": task["sha"], "error": "no clone for repo"}
             continue
-        for seed in range(seeds):
+        for repeat in range(repeats):
             for arm in arms:
-                if (task["sha"], arm, seed) in skip:
+                if (task["sha"], arm, repeat) in skip:
                     continue
                 if max_runs and launched >= max_runs:
                     return
@@ -297,7 +369,7 @@ def run_pilot(
                     record = run_one(
                         task,
                         arm,
-                        seed,
+                        repeat,
                         repo_path=repo_path,
                         worktree=worktree,
                         mcp_config=mcp_configs[arm],
@@ -309,7 +381,7 @@ def run_pilot(
                         "repo": task["repo"],
                         "sha": task["sha"],
                         "arm": arm,
-                        "seed": seed,
+                        "repeat": repeat,
                         "error": f"{type(exc).__name__}: {exc}",
                     }
                 launched += 1
@@ -325,6 +397,10 @@ def _looks_rate_limited(record: dict) -> bool:
     Records that trip this end the current night: the pilot backs off rather
     than burning against a depleted window, and resumes in the next one.
     """
+    # result_summary is included so a rate-limit that the CLI reports only in the
+    # final text still halts the pass. The trade-off: an agent that itself writes
+    # "overloaded" (etc.) in its summary would trip a false halt. Acceptable here
+    # because a false halt only pauses the pass, and resume picks it back up.
     haystack = " ".join(
         str(record.get(key, "")).lower()
         for key in ("error", "terminal_reason", "stderr_tail", "result_summary")
@@ -334,7 +410,7 @@ def _looks_rate_limited(record: dict) -> bool:
 
 
 def completed_keys(out_path: Path) -> set[tuple[str, str, int]]:
-    """(sha, arm, seed) of runs already recorded successfully, for resume."""
+    """(sha, arm, repeat) of runs already recorded successfully, for resume."""
     done: set[tuple[str, str, int]] = set()
     if not out_path.exists():
         return done
@@ -345,7 +421,7 @@ def completed_keys(out_path: Path) -> set[tuple[str, str, int]]:
             record = json.loads(line)
             if "error" in record or record.get("dry_run"):
                 continue
-            done.add((record.get("sha"), record.get("arm"), int(record.get("seed", 0))))
+            done.add((record.get("sha"), record.get("arm"), int(record.get("repeat", 0))))
     return done
 
 
@@ -369,12 +445,18 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=_HERE / "results" / "agent")
     parser.add_argument("--worktrees", type=Path, default=Path.home() / ".cache" / "redcon-agent-wt")
     parser.add_argument("--arms", default=",".join(ARMS), help="comma-separated subset of arms")
-    parser.add_argument("--seeds", type=int, default=3)
+    parser.add_argument("--repeats", type=int, default=3, help="repetitions per task/arm (variance, not RNG seeds)")
     parser.add_argument("--limit", type=int, default=0, help="cap number of tasks (0 = all)")
+    parser.add_argument(
+        "--task-list",
+        type=Path,
+        default=None,
+        help="run only the SHAs listed in this file (one per line, '#' comments ok)",
+    )
     parser.add_argument(
         "--pilot",
         action="store_true",
-        help="use the size-stratified 12-task pilot subset (4 per repo)",
+        help=f"run the pinned pilot subset in {PILOT_TASKS.name}",
     )
     parser.add_argument("--max-runs", type=int, default=0, help="cap live runs this pass (0 = all)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
@@ -382,12 +464,19 @@ def main() -> int:
     args = parser.parse_args()
 
     arms = tuple(a.strip() for a in args.arms.split(",") if a.strip())
-    tasks = read_tasks_jsonl(args.tasks)
-    if args.pilot:
-        tasks = select_pilot_tasks(tasks)
-        print(f"pilot subset: {len(tasks)} tasks - " + ", ".join(f"{t['repo']}/{t['sha'][:7]}" for t in tasks))
+    all_tasks = read_tasks_jsonl(args.tasks)
+    stratum_of = {sha: name for name, group in _terciles(all_tasks).items() for sha in (t["sha"] for t in group)}
+
+    task_list = args.task_list or (PILOT_TASKS if args.pilot else None)
+    if task_list:
+        tasks = _select_by_shas(all_tasks, read_task_list(task_list))
+        print(f"task list {task_list.name}: {len(tasks)} tasks")
+    else:
+        tasks = all_tasks
     if args.limit:
         tasks = tasks[: args.limit]
+    # Tag stratum from the full-corpus terciles, so records carry it either way.
+    tasks = [{**task, "stratum": stratum_of.get(task["sha"])} for task in tasks]
 
     repo_paths: dict[str, Path] = {}
     for spec in REPOS:
@@ -408,7 +497,7 @@ def main() -> int:
         tasks,
         repo_paths,
         arms=arms,
-        seeds=args.seeds,
+        repeats=args.repeats,
         mcp_configs=mcp_configs,
         worktree_root=args.worktrees,
         timeout=args.timeout,
@@ -429,7 +518,7 @@ def main() -> int:
             print(f"[error] {record['repo']} {record['sha'][:9]} {tag}: {record['error']}")
         else:
             print(
-                f"[ok] {record['repo']} {record['sha'][:9]} {tag} seed{record['seed']} "
+                f"[ok] {record['repo']} {record['sha'][:9]} {tag} rep{record['repeat']} "
                 f"turns={record.get('num_turns')} cost=${record.get('cost_usd')} "
                 f"file_hits={record.get('file_hits')}"
             )
