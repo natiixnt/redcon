@@ -1,0 +1,18 @@
+# Pinned pilot subset for the layer-2 agent arm (agent_arm.py --pilot / --task-list).
+# Selection rule: split the corpus into small/medium/large diff-size terciles and
+# take 4 tasks from each, spread across the three repos, so the pilot covers the size
+# spectrum rather than favouring the large commits that flatter redcon. Deterministic;
+# regenerate with select_pilot_tasks(). Columns: <sha>  # <stratum> <repo> size=<n>  <subject>
+
+bff780ff9df7a8d0a271db2f80c17c7be32dc2a1  # small  click  size=2    Fix layout, align full version
+2ea2286db4da3ba6d318e617ac03217225e9f962  # small  httpx  size=2    Import ssl on demand (#3401)
+10f4a1890b3b62926d99608cb8c4e09efdc16ab6  # small  redcon size=2    Add JSON Schemas and a validate command for artifacts
+0039359443e73ab1034c63a1f6d58aba22c0ebc8  # small  click  size=1    Add missing space between option help text and deprecati
+aef225df47377a1bc3d967327b501f577dd5462c  # medium click  size=7    Add type annotations for instance attributes in `formatt
+66225539796d819b5114ead2fd5e4d61865ab708  # medium httpx  size=6    Cleanup `Request` method parameter. (#3378)
+d874a9a5b1db899759b0b56e7aeb1bd656c131c4  # medium redcon size=7    coverage report compressor (V69)
+ca51b4532a4495c38c8abf1a393dbd80099deae3  # medium httpx  size=4    Keep clients in sync (#3042)
+18400b2495347c684c8182f775b4aaec0838cc0e  # large  click  size=59   Add format_filename and sentinel files.
+2318fd822cdb16435ccb5cabcba16c0b7969c1e4  # large  httpx  size=41   Enabling `ruff` C416 (#3001)
+4386504b69252914f827e193883066486d9fd131  # large  redcon size=32   mirror every pack report into .redcon/runs/ (#159)
+56c7b8dd627ebfa7a5b8879087f1f0f21e3d9425  # large  redcon size=15   Fix first-run correctness bugs: python -m, scan-index sc

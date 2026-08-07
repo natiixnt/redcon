@@ -143,10 +143,10 @@ def test_completed_keys_reads_only_successful_runs(tmp_path: Path) -> None:
         "\n".join(
             json.dumps(r)
             for r in [
-                {"sha": "a", "arm": "redcon", "seed": 0, "num_turns": 4},
-                {"sha": "a", "arm": "baseline", "seed": 0, "error": "timeout"},
-                {"sha": "b", "arm": "redcon", "seed": 1, "num_turns": 7},
-                {"sha": "c", "arm": "redcon", "seed": 0, "dry_run": True},
+                {"sha": "a", "arm": "redcon", "repeat": 0, "num_turns": 4},
+                {"sha": "a", "arm": "baseline", "repeat": 0, "error": "timeout"},
+                {"sha": "b", "arm": "redcon", "repeat": 1, "num_turns": 7},
+                {"sha": "c", "arm": "redcon", "repeat": 0, "dry_run": True},
             ]
         )
         + "\n",
@@ -157,10 +157,10 @@ def test_completed_keys_reads_only_successful_runs(tmp_path: Path) -> None:
     assert agent_arm.completed_keys(tmp_path / "missing.jsonl") == set()
 
 
-def test_select_pilot_tasks_is_stratified_and_deterministic() -> None:
+def test_select_pilot_tasks_covers_strata_and_repos_evenly() -> None:
     tasks = []
-    for repo in ("alpha", "beta"):
-        for size in range(1, 21):  # 20 tasks/repo, spanning small to large
+    for repo in ("alpha", "beta", "gamma"):
+        for size in range(1, 31):  # 30 tasks/repo spanning small to large
             tasks.append(
                 {
                     "repo": repo,
@@ -170,19 +170,32 @@ def test_select_pilot_tasks_is_stratified_and_deterministic() -> None:
                 }
             )
 
-    picked = agent_arm.select_pilot_tasks(tasks, per_repo=4)
-    assert len(picked) == 8  # 4 per repo x 2 repos
-    per_repo = {"alpha": [], "beta": []}
+    picked = agent_arm.select_pilot_tasks(tasks, per_stratum=4)
+    assert len(picked) == 12
+    strata = [t["stratum"] for t in picked]
+    repos = [t["repo"] for t in picked]
+    # 4 per size stratum, and the three repos evenly represented across the 12.
+    assert all(strata.count(name) == 4 for name in agent_arm.STRATA)
+    assert all(repos.count(repo) == 4 for repo in ("alpha", "beta", "gamma"))
+    # Large tasks are genuinely larger than small ones.
+    size_by = {name: [] for name in agent_arm.STRATA}
     for task in picked:
-        per_repo[task["repo"]].append(agent_arm._task_size(task))
-    for sizes in per_repo.values():
-        assert len(sizes) == 4
-        assert sizes == sorted(sizes)  # spans small to large
-        assert min(sizes) < max(sizes)  # genuinely spread, not all the same size
+        size_by[task["stratum"]].append(agent_arm._task_size(task))
+    assert max(size_by["small"]) < min(size_by["large"])
     # Deterministic across calls.
-    assert [t["sha"] for t in agent_arm.select_pilot_tasks(tasks, per_repo=4)] == [
-        t["sha"] for t in picked
-    ]
+    assert [t["sha"] for t in agent_arm.select_pilot_tasks(tasks)] == [t["sha"] for t in picked]
+
+
+def test_read_task_list_and_select_by_shas(tmp_path: Path) -> None:
+    listing = tmp_path / "pilot-tasks.txt"
+    listing.write_text(
+        "# a comment\n\nsha1  # small alpha\nsha3 trailing junk\n",
+        encoding="utf-8",
+    )
+    assert agent_arm.read_task_list(listing) == ["sha1", "sha3"]
+    tasks = [{"sha": "sha1"}, {"sha": "sha2"}, {"sha": "sha3"}]
+    picked = agent_arm._select_by_shas(tasks, ["sha3", "sha1", "missing"])
+    assert [t["sha"] for t in picked] == ["sha3", "sha1"]  # order follows the list
 
 
 def test_looks_rate_limited_detects_usage_signals() -> None:
