@@ -75,6 +75,8 @@ def _git(repo: Path, *args: str) -> str:
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",  # some diffs carry non-utf-8 bytes; never crash mining
         check=True,
     )
     return proc.stdout
@@ -186,13 +188,19 @@ def build_tasks(
     max_tasks: int = 200,
     min_files: int = 1,
     max_files: int = 8,
+    min_diff_lines: int = 0,
+    max_diff_lines: int = MAX_DIFF_LINES,
+    min_dirs: int = 1,
 ) -> list[Task]:
     """Walk history of *rev* and turn qualifying commits into tasks.
 
     A commit qualifies when: it is not a merge; its subject describes code
     (task-like conventional type, or no conventional prefix at all); it changed
-    at least one existing source file; and its source diff is under
-    ``MAX_DIFF_LINES`` lines.
+    between ``min_files`` and ``max_files`` existing source files spanning at
+    least ``min_dirs`` directories; and its source diff is in
+    ``[min_diff_lines, max_diff_lines)`` lines. The defaults reproduce the
+    original small-repo corpus; the context-heavy corpus tightens the lower
+    bounds so tasks actually spread across a large tree.
     """
     tasks: list[Task] = []
     log = _git(repo, "log", rev, "--no-merges", "--format=%H|%s")
@@ -208,7 +216,10 @@ def build_tasks(
         changed = _changed_source_files(repo, sha)
         if not (min_files <= len(changed) <= max_files):
             continue
-        if _diff_line_count(repo, sha, changed) >= MAX_DIFF_LINES:
+        if len({str(Path(p).parent) for p in changed}) < min_dirs:
+            continue  # too localized: does not exercise a large tree
+        diff_lines = _diff_line_count(repo, sha, changed)
+        if not (min_diff_lines <= diff_lines < max_diff_lines):
             continue
 
         hunk_names: dict[str, list[dict[str, object]]] = {}
