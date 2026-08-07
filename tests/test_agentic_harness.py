@@ -272,6 +272,74 @@ def test_phrasing_distinguishability_counts_and_renders(tmp_path: Path) -> None:
     assert f"identical to precise for {identical}/{dist['total']} tasks" in markdown
 
 
+def _big_body(n: int, prefix: str = "x") -> str:
+    return "\n".join(f"{prefix}{i} = {i}" for i in range(n)) + "\n"
+
+
+def test_build_tasks_applies_dir_and_diff_size_filters(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(
+        repo,
+        "chore: layout",
+        {"pkg_a/one.py": "a = 0\n", "pkg_a/two.py": "b = 0\n", "pkg_b/three.py": "c = 0\n"},
+    )
+    # Multi-file, multi-directory, large diff: qualifies under the heavy filters.
+    _commit(
+        repo,
+        "feat: spread a substantial change across packages",
+        {
+            "pkg_a/one.py": _big_body(40, "a"),
+            "pkg_a/two.py": _big_body(20, "b"),
+            "pkg_b/three.py": _big_body(20, "c"),
+        },
+    )
+    # Three files but a single directory: fails min_dirs=2.
+    _commit(
+        repo,
+        "feat: rework only package a extensively here",
+        {"pkg_a/one.py": _big_body(80, "a"), "pkg_a/two.py": _big_body(40, "b")},
+    )
+
+    heavy = corpus.build_tasks(
+        repo, "fixture", min_files=3, max_files=8, min_dirs=2, min_diff_lines=60, max_diff_lines=400
+    )
+    subjects = [t.phrasings["precise"] for t in heavy]
+    assert any("spread a substantial change" in s for s in subjects)  # multi-dir kept
+    assert not any("rework only package a" in s for s in subjects)  # single-dir dropped
+    spread = next(t for t in heavy if "spread a substantial change" in t.phrasings["precise"])
+    assert len({str(Path(f).parent) for f in spread.changed_files}) >= 2
+
+    # The tiny-diff default corpus would keep neither (both exceed nothing) but the
+    # min_diff_lines floor also rejects a small multi-dir change.
+    small = corpus.build_tasks(repo, "fixture", min_files=3, min_dirs=2, min_diff_lines=1000)
+    assert small == []
+
+
+def test_select_heavy_balances_strata_and_repos() -> None:
+    import build_heavy
+
+    tasks = []
+    for repo in ("django", "sympy"):
+        for size in range(1, 31):
+            tasks.append(
+                {
+                    "repo": repo,
+                    "sha": f"{repo}{size:02d}",
+                    "changed_files": ["a/f.py", "b/g.py"],
+                    "hunk_names": {"a/f.py": [{"range": [1, size], "symbol": ""}]},
+                }
+            )
+    picked = build_heavy.select_heavy(tasks)
+    assert len(picked) == 12
+    assert all(t["stratum"] in build_heavy.STRATA for t in picked)
+    from collections import Counter
+
+    assert dict(Counter(t["stratum"] for t in picked)) == {"small": 4, "medium": 4, "large": 4}
+    assert dict(Counter(t["repo"] for t in picked)) == {"django": 6, "sympy": 6}
+
+
 def test_bootstrap_ci_is_deterministic() -> None:
     values = [0.1, 0.4, 0.9, 0.3, 0.7, 0.5]
     first = metrics.bootstrap_ci(values)
