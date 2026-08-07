@@ -44,6 +44,49 @@ file or symbol, so their medium collapses onto precise. The precise-vs-medium
 comparison (hypothesis 3) is therefore reported on that distinguishable subset,
 with the count stated, so the medium addendum is not read as more than it is.
 
-## Results
+## Pass 1 results (arms A and B, precise, 72 runs, one window)
 
-<!-- Filled in after the passes complete. -->
+Zero adoption. Arm A called a redcon tool 0 times across all 36 runs, on repos of
+several million tokens. "Available but unprompted" is pure schema overhead with no
+use, and A comes out slightly behind B.
+
+| arm | cost/run | turns | recall | precision | capped | redcon calls |
+|---|---|---|---|---|---|---|
+| A (redcon) | $0.82 | 23.2 | 0.62 | 0.82 | 16/36 | 0 |
+| B (baseline) | $0.78 | 19.8 | 0.69 | 0.80 | 10/36 | 0 |
+
+The night-1 audit (the agent greps by hand instead of ranking) is confirmed at
+full scale. This makes pass 2 the decisive test: whether one guidance line moves
+adoption off zero, and if so whether the pack then pays.
+
+## Pre-registered interpretation of pass 2 (recorded before pass 2 ran)
+
+Fixed in advance so no narrative is fitted after the fact:
+
+- **Ag adopts and beats B** (cost down at equal-or-better recall): thesis
+  conditionally confirmed - the pack works when the agent uses it. Action for
+  1.16: ship guidance by default (installer writes a client rule) and slim the
+  tool schemas.
+- **Ag adopts but does not beat B**: pack value on this terrain is refuted. Then a
+  serious repositioning conversation - token savings in API/CI workflows and cache
+  stability, not "better interactive-agent outcomes".
+- **Ag does not adopt**: one prompt line is not enough; the next measured step is a
+  client config-file rule (CLAUDE.md-style), which is exactly what the installer
+  can write.
+- **Mixed by stratum**: an applicability-boundary map for the writeup.
+
+Independent of the outcome, one finding is already hard and goes to 1.16: adoption
+is a first-class product problem. A tool the agent does not call does not exist,
+however good the pack.
+
+## Causal-chain protocol for the Ag transcripts
+
+Adoption plus a win is only a correlation; the transcripts turn it into a chain.
+For every Ag run, read from the stream-json transcript and report per run: which
+redcon tools were called and at which turn, the file set redcon_rank/redcon_budget
+returned, and the overlap of files_edited with that set - i.e. did the agent edit
+the files the pack pointed at, and did cost fall as a result.
+
+## Pass 2 results
+
+<!-- Filled in after pass 2 completes. -->
