@@ -373,11 +373,17 @@ def run_one(
 
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
     if spec.get("install_rules"):
-        # Deliver the guidance exactly as the installer does: write redcon's
-        # shipped AGENTS.md instruction block into the worktree the CLI reads.
-        from redcon.mcp.instructions import ensure_agent_instructions  # noqa: PLC0415
+        # Write redcon's shipped instruction block into the client rules files.
+        # The installer ships AGENTS.md, but headless Claude Code only reads
+        # CLAUDE.md, so the block must land there to reach this agent - place it
+        # in both (this is the config-file channel, and a 1.16 install target).
+        from redcon.mcp.instructions import (  # noqa: PLC0415
+            INSTRUCTIONS_BLOCK,
+            ensure_agent_instructions,
+        )
 
-        ensure_agent_instructions(worktree)
+        ensure_agent_instructions(worktree)  # AGENTS.md, as shipped today
+        (worktree / "CLAUDE.md").write_text(INSTRUCTIONS_BLOCK + "\n", encoding="utf-8")
         base["rules_installed"] = True
     if spec.get("preinject"):
         # Prefix the prompt with a pack generated up front, then rebuild the
