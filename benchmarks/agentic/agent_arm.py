@@ -72,8 +72,13 @@ ARM_SPECS = {
     # The prompt is identical to baseline; the guidance is delivered exactly as
     # `redcon mcp install` delivers it, so this arm measures the shipped product.
     "redcon_config": {"mcp": "redcon", "guided": False, "install_rules": True},  # Agc
+    # P: no MCP. The prompt is prefixed with a redcon pack generated up front, so
+    # the agent starts from the map instead of having to call for it. This removes
+    # adoption from the equation and measures the pack's pure value against B.
+    "preinject": {"mcp": "baseline", "guided": False, "preinject": True},  # P
 }
 ARMS = ("redcon", "redcon_guided", "baseline")
+PREINJECT_BUDGET = 30_000
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 MAX_TURNS = 30
@@ -221,6 +226,27 @@ def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False)
     return prompt
 
 
+def _preinject_pack(worktree: Path, task: dict) -> str:
+    """A redcon pack for the task at the worktree, rendered as pasteable markdown.
+
+    Generated through the Python API so nothing is written into the worktree (no
+    .redcon/ dir that would show up as an edit).
+    """
+    from redcon.config import default_config  # noqa: PLC0415
+    from redcon.core import pipeline  # noqa: PLC0415
+    from redcon.core.render import render_pack_markdown  # noqa: PLC0415
+    from redcon.stages.workflow import as_json_dict  # noqa: PLC0415
+
+    result = pipeline.run_pack(
+        task["phrasings"]["precise"],
+        worktree,
+        max_tokens=PREINJECT_BUDGET,
+        config=default_config(),
+        record_history=False,
+    )
+    return render_pack_markdown(as_json_dict(result))
+
+
 def build_command(prompt: str, mcp_config: Path) -> list[str]:
     """The full headless CLI command for one run.
 
@@ -353,6 +379,13 @@ def run_one(
 
         ensure_agent_instructions(worktree)
         base["rules_installed"] = True
+    if spec.get("preinject"):
+        # Prefix the prompt with a pack generated up front, then rebuild the
+        # command. The agent starts from the map instead of calling for one.
+        pack_md = _preinject_pack(worktree, task)
+        prompt = f"{pack_md}\n\n---\n\nUsing the context above, do the following.\n\n{prompt}"
+        command = build_command(prompt, mcp_config)
+        base["preinject_chars"] = len(pack_md)
     started = time.monotonic()
     try:
         proc = subprocess.run(
