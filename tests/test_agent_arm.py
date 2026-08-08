@@ -87,9 +87,11 @@ def test_preinject_arm_generates_pack_markdown(tmp_path: Path) -> None:
     (repo / "handler.py").write_text("def handle(x):\n    return x\n", encoding="utf-8")
     (repo / "util.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
     task = {"phrasings": {"precise": "handle incoming requests"}}
-    pack = agent_arm._preinject_pack(repo, task)
-    assert isinstance(pack, str) and len(pack) > 0
-    assert "Pack Report" in pack  # the pasteable redcon pack, not a raw dump
+    pack_md, pack_files = agent_arm._preinject_pack(repo, task)
+    assert isinstance(pack_md, str) and "Pack Report" in pack_md  # pasteable pack
+    # pack_files are repo-relative so they can be intersected with changed_files.
+    assert isinstance(pack_files, list)
+    assert "handler.py" in pack_files  # the relevant file made it into the map
 
 
 def test_build_command_uses_stream_json(tmp_path: Path) -> None:

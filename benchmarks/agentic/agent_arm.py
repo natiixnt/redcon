@@ -226,11 +226,13 @@ def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False)
     return prompt
 
 
-def _preinject_pack(worktree: Path, task: dict) -> str:
-    """A redcon pack for the task at the worktree, rendered as pasteable markdown.
+def _preinject_pack(worktree: Path, task: dict) -> tuple[str, list[str]]:
+    """A redcon pack for the task at the worktree.
 
-    Generated through the Python API so nothing is written into the worktree (no
-    .redcon/ dir that would show up as an edit).
+    Returns the pasteable markdown and the repo-relative paths the pack included,
+    so we can measure how many ground-truth files the injected map even contained
+    (the heavy corpus has no layer-1 pack-coverage data). Generated through the
+    Python API so nothing is written into the worktree.
     """
     from redcon.config import default_config  # noqa: PLC0415
     from redcon.core import pipeline  # noqa: PLC0415
@@ -244,7 +246,19 @@ def _preinject_pack(worktree: Path, task: dict) -> str:
         config=default_config(),
         record_history=False,
     )
-    return render_pack_markdown(as_json_dict(result))
+    data = as_json_dict(result)
+    raw = data.get("files_included") or [
+        item.get("path", "") for item in data.get("compressed_context", [])
+    ]
+    files: list[str] = []
+    for path in raw:
+        if not path:
+            continue
+        try:
+            files.append(str(Path(path).resolve().relative_to(worktree.resolve())))
+        except ValueError:
+            files.append(path)  # already relative or outside; keep as-is
+    return render_pack_markdown(data), files
 
 
 def build_command(prompt: str, mcp_config: Path) -> list[str]:
@@ -388,10 +402,15 @@ def run_one(
     if spec.get("preinject"):
         # Prefix the prompt with a pack generated up front, then rebuild the
         # command. The agent starts from the map instead of calling for one.
-        pack_md = _preinject_pack(worktree, task)
+        pack_md, pack_files = _preinject_pack(worktree, task)
         prompt = f"{pack_md}\n\n---\n\nUsing the context above, do the following.\n\n{prompt}"
         command = build_command(prompt, mcp_config)
+        changed = set(task["changed_files"])
         base["preinject_chars"] = len(pack_md)
+        base["pack_files"] = pack_files
+        base["pack_file_hits"] = round(
+            len(changed & set(pack_files)) / len(changed), 6
+        ) if changed else 0.0
     started = time.monotonic()
     try:
         proc = subprocess.run(
