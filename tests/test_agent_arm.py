@@ -55,6 +55,26 @@ def test_arms_map_to_configs_and_guidance() -> None:
     assert set(agent_arm.ARMS) == {"redcon", "redcon_guided", "baseline"}
 
 
+def test_agc_arm_installs_shipped_rules(tmp_path: Path) -> None:
+    # Agc uses the redcon server, no inline guidance, and installs the rules file.
+    assert agent_arm.ARM_SPECS["redcon_config"] == {
+        "mcp": "redcon",
+        "guided": False,
+        "install_rules": True,
+    }
+    # The rules delivery is redcon's own installer: it writes AGENTS.md with the
+    # redcon instruction block, so the arm measures the shipped product.
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from redcon.mcp.instructions import ensure_agent_instructions
+
+    ensure_agent_instructions(tmp_path)
+    agents = tmp_path / "AGENTS.md"
+    assert agents.exists()
+    assert "redcon" in agents.read_text(encoding="utf-8").lower()
+
+
 def test_build_command_uses_stream_json(tmp_path: Path) -> None:
     configs = agent_arm.write_mcp_configs(
         tmp_path, venv_python="/venv/bin/python", redcon_root=Path("/repo")

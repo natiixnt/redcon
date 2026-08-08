@@ -67,6 +67,11 @@ ARM_SPECS = {
     "redcon": {"mcp": "redcon", "guided": False},  # A
     "redcon_guided": {"mcp": "redcon", "guided": True},  # Ag
     "baseline": {"mcp": "baseline", "guided": False},  # B
+    # Agc: redcon plus the shipped installer guidance written to the worktree's
+    # AGENTS.md (which the CLI reads automatically), not an inline prompt line.
+    # The prompt is identical to baseline; the guidance is delivered exactly as
+    # `redcon mcp install` delivers it, so this arm measures the shipped product.
+    "redcon_config": {"mcp": "redcon", "guided": False, "install_rules": True},  # Agc
 }
 ARMS = ("redcon", "redcon_guided", "baseline")
 MODEL = "sonnet"
@@ -341,6 +346,13 @@ def run_one(
         return {**base, "dry_run": True, "command": command}
 
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
+    if spec.get("install_rules"):
+        # Deliver the guidance exactly as the installer does: write redcon's
+        # shipped AGENTS.md instruction block into the worktree the CLI reads.
+        from redcon.mcp.instructions import ensure_agent_instructions  # noqa: PLC0415
+
+        ensure_agent_instructions(worktree)
+        base["rules_installed"] = True
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -353,6 +365,10 @@ def run_one(
         )
         elapsed = round(time.monotonic() - started, 3)
         edited = _files_edited(worktree)
+        if spec.get("install_rules"):
+            # The rules file we wrote is not an agent edit; drop it so it cannot
+            # inflate recall or precision.
+            edited = [p for p in edited if Path(p).name not in ("AGENTS.md", "CLAUDE.md")]
         if transcript_dir is not None:
             transcript_dir.mkdir(parents=True, exist_ok=True)
             name = f"{task['sha'][:9]}-{arm}-{phrasing}-r{repeat}.jsonl"
