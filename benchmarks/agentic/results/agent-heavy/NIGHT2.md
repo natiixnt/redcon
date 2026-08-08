@@ -118,6 +118,29 @@ redcon tools were called and at which turn, the file set redcon_rank/redcon_budg
 returned, and the overlap of files_edited with that set - i.e. did the agent edit
 the files the pack pointed at, and did cost fall as a result.
 
+## Threats to validity (scope of the adoption result)
+
+The adoption finding is measured in **headless, autonomous mode** (`claude -p`)
+with **model sonnet**. It says nothing about an interactive user who can tell the
+agent "use redcon" directly, and other models may have different tool-use habits.
+The claim is "the autonomous sonnet agent does not reach for redcon on its own
+here", not "agents never use redcon".
+
+## Pre-registered product thesis (recorded before arm P ran)
+
+Written before seeing P, to be honest with ourselves:
+
+- If adoption is zero across every pull channel (no guidance, prompt line,
+  config-file rule) **and P shows value**, the conclusion is **value delivers by
+  push, not pull**: a pack injected before the agent starts (hooks, a pack-first
+  CLI, CI, the gateway) works, while "install the MCP server and the agent will
+  reach for it" is not a real delivery path today. That shifts the 1.16 priority
+  from "better tool descriptions" to "auto-injection as the flagship integration".
+- If **P does not show value**, the pack's worth on this terrain is refuted even
+  with adoption removed, and we return to the positioning conversation with harder
+  data. The `pack_file_hits` metric guards this branch: a P loss only counts
+  against the pack if the pack actually contained the ground-truth files.
+
 ## Pass 2 results
 
 <!-- Filled in after pass 2 completes. -->
