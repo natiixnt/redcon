@@ -95,6 +95,21 @@ already writes it), and do not rely on prompt-level hints. The content differenc
 between the two arms is a property of each channel as it actually ships, not a
 confound to explain away.
 
+## Arm P (pre-injection) - registered before its run
+
+Every MCP arm is bottlenecked on adoption, so none of them can measure the pack's
+value while adoption sits at zero. Arm P removes adoption from the equation: the
+agent's prompt is prefixed with a redcon pack generated up front (precise phrasing,
+30k budget, the pack report pasted before the task), and the agent then works with
+its normal file tools and no MCP. 12 tasks x 3 repeats precise = 36 runs, compared
+against the existing B data.
+
+**Hypothesis (registered before the run):** pre-injection bypasses adoption
+entirely, so P measures the pack's pure value. P should beat B on cost and turns at
+equal-or-better recall, because the agent starts from a map instead of grepping for
+one. If P does not beat B, the pack's value on this terrain is refuted independently
+of adoption - a stronger negative than the MCP arms could give.
+
 ## Causal-chain protocol for the Ag transcripts
 
 Adoption plus a win is only a correlation; the transcripts turn it into a chain.
