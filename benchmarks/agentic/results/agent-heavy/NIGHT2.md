@@ -79,6 +79,22 @@ Independent of the outcome, one finding is already hard and goes to 1.16: adopti
 is a first-class product problem. A tool the agent does not call does not exist,
 however good the pack.
 
+### Ag and Agc are two channels, not two doses
+
+If a pass 3 runs (arm Agc), do not read Ag vs Agc as "less text vs more text". They
+answer two different questions, and both matter:
+
+- **Ag** measures the **minimal intervention**: a single neutral line in the prompt.
+- **Agc** measures the **shipped product**: redcon's installer block written to the
+  client rules file the CLI reads automatically.
+
+So if Agc drives adoption where Ag does not, the conclusion is not "more guidance
+helps" - it is "the client-config channel works, the prompt channel does not."
+That is directly actionable for 1.16: ship the config-file rule (the installer
+already writes it), and do not rely on prompt-level hints. The content difference
+between the two arms is a property of each channel as it actually ships, not a
+confound to explain away.
+
 ## Causal-chain protocol for the Ag transcripts
 
 Adoption plus a win is only a correlation; the transcripts turn it into a chain.
