@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-08-09
+
+### Changed
+
+- Scale the default pack budget by repository size. When no budget is set, the
+  default grows step-wise with the scanned repository (200k-1M: 45k, 1M-3M: 75k,
+  >3M: 120k); small repositories are unchanged. **The default pack budget now
+  rises for repositories over ~200k tokens, so packs and their `prompt_cache_key`
+  change once after upgrading on medium and large repositories. Users who pin a
+  budget with `--max-tokens` or `[budget].max_tokens` are unaffected.** An
+  explicit budget that is small for a large repository prints a coverage warning
+  to stderr.
+- Slim the MCP tool descriptions (about 36% fewer tokens) with a snapshot test
+  that caps their size, since they sit in the agent's cached context every
+  session.
+
+### Fixed
+
+- Write the redcon instruction block to `CLAUDE.md` when it is missing, not only
+  when it already exists. Headless Claude Code reads `CLAUDE.md` but not
+  `AGENTS.md`, so the shipped guidance previously never reached it.
+
+### Added
+
+- A pre-registered, two-layer agentic evaluation writeup in
+  `docs/research/agentic-eval.md`.
+
 ## [1.15.0] - 2026-08-03
 
 ### Added
