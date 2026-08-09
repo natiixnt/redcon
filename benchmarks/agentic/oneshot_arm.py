@@ -30,8 +30,6 @@ ARMS = ("redcon", "naive")
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 600
-# No file tools: the model must answer from the injected context alone.
-_NO_TOOLS = ("Bash", "Read", "Edit", "Write", "Grep", "Glob", "Task", "WebFetch", "WebSearch")
 
 _STOPWORDS = {
     "the", "and", "for", "with", "add", "fix", "use", "from", "into", "that", "this",
@@ -206,8 +204,13 @@ def _command(prompt: str) -> list[str]:
         "json",
         "--permission-mode",
         "bypassPermissions",
-        "--disallowedTools",
-        *_NO_TOOLS,
+        # Tool-less: "" removes every tool from the model's view (not merely
+        # blocks execution), so the single turn cannot be spent on a tool
+        # attempt. The model must answer with a unified diff from the injected
+        # context alone - this is a reading-comprehension test of the selection,
+        # not an agent. Empty results should now mean "context insufficient".
+        "--tools",
+        "",
     ]
 
 
