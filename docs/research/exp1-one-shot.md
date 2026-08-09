@@ -27,13 +27,49 @@ confound the result. Arms, all given the **same token budget**:
 Because the budget is equal by construction, **cost is identical across arms**;
 the only thing that varies is what got selected.
 
+### Naive baseline, pinned (deterministic)
+
+So the baseline is not a moving target:
+
+- **Keywords:** from the precise phrasing only. Lowercase, split on non-
+  alphanumeric characters, drop tokens shorter than 3 characters and a fixed
+  English stopword list. This set is the query.
+- **Scoring:** per candidate source file, the total count of keyword occurrences
+  in its content (match count).
+- **Tie-breaks (fully deterministic):** higher match count first; ties broken by
+  shorter path, then lexicographic path.
+- **Truncation to budget:** walk files in ranked order and include each file whole
+  until the next file would exceed the token budget; a file that does not fit is
+  dropped entirely (no partial files). The budget is the same size-scaled value
+  redcon's pack uses for the task, so both arms carry the same token count.
+
+### Response format, forced identically
+
+Every arm is instructed to output **only a unified diff** (git-style patch) and
+nothing else, so the parser and the metric are identical across arms and the
+format cannot advantage one arm.
+
 - **Corpora:** `tasks-heavy.jsonl` (django, sympy) plus 12 tasks from the small
   corpus for contrast.
-- **Metric:** edit correctness as **diff overlap** between the model's proposed
-  patch and the real commit's diff (line- and file-level), plus the (equal) cost
-  for the record.
 - **Model:** sonnet, single call, deterministic prompt; a few repeats for
   variance.
+
+### Diff-overlap metric, defined before the run
+
+Let `GT` be the real commit's changed files and, per file, its parent-side changed
+line ranges; let `P` be the model's unified-diff patch.
+
+- **File-level overlap** = `|files(P) intersect GT_files| / |GT_files|` - the
+  fraction of ground-truth files the patch touches.
+- **Line-level overlap** = across `GT` files, `|changed_lines(P) intersect
+  GT_lines| / |GT_lines|`, where a line matches after stripping leading and
+  trailing whitespace (whitespace-tolerant), comparing the patch's changed lines
+  to the commit's changed lines.
+- **Parse failure:** if the model's output is not a parseable unified diff, both
+  overlaps are **0** for that run, and the parse-failure rate is reported
+  **separately per arm** so a format problem is never hidden inside a low score.
+
+Cost (equal across arms by construction) is recorded for the ledger.
 
 ## Pre-registered hypothesis
 
