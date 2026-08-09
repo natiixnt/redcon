@@ -258,34 +258,55 @@ grep achieves (0.688).
 
 **Exploratory, post-hoc, small n (not a confirmed result):** on the 6 runs where
 the injected pack happened to be complete (pack-file-hits = 1.0), P recall was
-0.78 - above baseline's 0.69. This is consistent with the hypothesis "fix coverage
-(a budget fix, per the sweep) and push may pay", but n=6 and it is not a
-pre-registered comparison; treat it as a lead, not a finding.
+0.78 - above baseline's 0.69. This was a lead, not a finding, and arm P120 below
+tests it at scale (24 runs at ~0.9 coverage) and **refutes it**.
 
-### The "inject before start" thesis
+### P120: a near-complete pack still does not pay
 
-Three independent pieces of evidence converge: (1) Ag spent its extra turns
-searching instead of ranking; (2) Agc's `redcon_rank` helped only when it came
-early, not late; (3) P did best exactly on the tasks where the up-front map was
-complete. The pack's value lands when it is present at the start of the run, which
-is the push (pre-injection) mode, not the pull (call-a-tool-mid-run) mode.
+P120 pre-injects a 120k pack (pack-file-hits 0.896, near-complete). It did not beat
+baseline: recall 0.575 vs B 0.688, precision 0.39, cost **$2.72 (3.5x)**, and a
+**33% turn-cap rate** (8/24 hit the 30-turn limit vs 10/36 for B). Even excluding
+the capped runs, the completed P120 runs only *tie* baseline on recall (0.672 vs
+0.688) at 3.4x cost and half the precision (0.45 vs 0.80).
+
+So more coverage did not help - it hurt: the larger map inflates cost (re-read
+every turn) and makes the agent wade through more files, capping out and spreading
+edits thin. The pre-registered P120 hypothesis (recall improves at ~0.9 coverage)
+is not supported. The registered context-window caveat did **not** trigger - the
+1M window held the 120k prefix; the failures were turn-caps, not truncation, which
+is itself informative: the map fits, the agent just cannot use a large one well in
+a loop.
+
+### On "inject before start" - what survives P120
+
+The pull evidence still holds that context helps most early not late: Ag spent its
+extra turns searching, and Agc's `redcon_rank` helped only when it came in the
+first few turns. But the stronger claim - that pushing the map up front pays -
+does **not** survive P120. A targeted early lookup can help; dumping the whole map
+in front of a multi-turn agent does not, at 30k (incomplete, precision harm) or at
+120k (complete, but the agent caps out wading through it). The value of "at start"
+is a small, targeted result, not a large map re-read every turn.
 
 ## Bottom line
 
-On large repositories, redcon faces **two distinct problems**, both measured:
+On large repositories, in headless autonomous mode with sonnet, redcon delivered
+**no measured end-task improvement through any channel tested**:
 
-1. **Delivery / adoption.** The autonomous sonnet agent will not reach for redcon
-   on its own: 0/36 unprompted, 0/36 with a prompt line, 4/36 via the CLAUDE.md
-   rule. Guidance alone does not move it.
-2. **Budget-bounded coverage.** At the 30k default the pack covers only 64% of the
-   changed files on django/sympy (a budget limit - it reaches 0.90 at 120k), and
-   pre-injecting an incomplete map is measured harm (precision 0.41, recall below
-   baseline).
+1. **Pull fails on delivery.** The agent will not reach for redcon on its own:
+   0/36 unprompted, 0/36 with a prompt line, 4/36 via the CLAUDE.md rule.
+2. **Push fails in the loop, regardless of coverage.** Pre-injecting the map does
+   not beat baseline at 30k (0.64 coverage, precision 0.41) or at 120k (0.90
+   coverage, recall ties B at 3.4x cost, half the precision, 33% cap-outs). More
+   coverage did not turn push positive; it made the map harder to use.
 
-Value is delivered by **push, not pull** - but push only pays once the budget/
-coverage gap is closed and in automated, short-turn flows where re-reading the map
-is cheap. This reprioritizes 1.16 toward budget-scaled packing and auto-injection
-in CI/batch modes rather than tool-description tweaks; the full backlog is in the
-1.16 notes. The layer-1 results (97.8% file recall, contexts 63-93% smaller) stand
-for small and medium repositories; these limits are specific to multi-million-token
-repos in headless autonomous mode with sonnet.
+What is *not* refuted: the pack's file-finding itself is good (the sweep reaches
+0.90 recall at 120k - a budget, not a ranking, limit), and the layer-1 results
+(97.8% file recall, contexts 63-93% smaller) stand for small and medium
+repositories. The gap is between a good pack and a better end-task outcome once an
+autonomous multi-turn agent is in the loop: the agent does as well or better
+exploring freely, and a handed-over map hurts precision and inflates cost. The one
+delivery mode these runs do **not** cover is single- or few-turn, non-interactive
+flows (CI checks, review bots, one-shot API calls), where the map is not re-read
+many times; that remains the only open place push might pay, and it is the honest
+scope for any 1.16 auto-injection bet. Everything else - budget-scaled packing, the
+CLAUDE.md delivery fix, slimmer schemas - is in the 1.16 notes.
