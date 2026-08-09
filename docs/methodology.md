@@ -77,6 +77,26 @@ default pipeline. Same task, same tree, same day as the table above:
   else. Run one pack on your own repository; that number is the only one
   that matters for you.
 
+## Default budget scales with repository size
+
+When you do not pass `--max-tokens` and set no `[budget].max_tokens` in the config,
+the default budget grows step-wise with the scanned repository size, because 30k
+under-covers very large repositories:
+
+| scanned repo tokens | default budget |
+| --- | --- |
+| <= 200k | 30,000 (unchanged) |
+| 200k - 1M | 45,000 |
+| 1M - 3M | 75,000 |
+| > 3M | 120,000 |
+
+Only the top step is directly measured: the coverage sweep in the evaluation below
+found a 120k pack recovers ~90% of the changed files on a 5-7M-token repository. The
+middle steps interpolate between the measured ends; they are not four separate
+measurements. An explicit `--max-tokens` always wins, and if it is small for a
+large repository redcon prints a one-line coverage warning to stderr. Small
+repositories are unaffected.
+
 ## Agentic evaluation
 
 For a pre-registered, two-layer study on real commits - what the pack contains
