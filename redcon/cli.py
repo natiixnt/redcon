@@ -707,13 +707,45 @@ def cmd_pack(args: argparse.Namespace) -> int:
     if validation_error is not None:
         return validation_error
 
+    # Resolve the token budget by repository size. With no explicit --max-tokens
+    # the default grows step-wise with the scanned repo (small repos unchanged);
+    # an explicit budget that is small for the repo's size earns a stderr warning.
+    # A scan failure must never break pack, so fall back to the given value.
+    effective_max_tokens = args.max_tokens
+    try:
+        from redcon.config import load_config
+        from redcon.core.budget import (
+            coverage_warning,
+            default_budget_for_repo_tokens,
+            estimate_repo_tokens,
+        )
+        from redcon.schemas.models import DEFAULT_MAX_TOKENS
+
+        budget_config = load_config(
+            Path(args.repo), config_path=Path(args.config) if args.config else None
+        )
+        repo_tokens = estimate_repo_tokens(Path(args.repo), budget_config)
+        if args.max_tokens is not None:
+            # Explicit budget wins; warn only if it is small for a large repo.
+            warning = coverage_warning(repo_tokens, args.max_tokens)
+            if warning:
+                print(warning, file=sys.stderr)
+        elif budget_config.budget.max_tokens != DEFAULT_MAX_TOKENS:
+            # The repo configured its own default; honour it (pass None through).
+            effective_max_tokens = None
+        else:
+            # No budget set anywhere: scale the built-in default by repo size.
+            effective_max_tokens = default_budget_for_repo_tokens(repo_tokens)
+    except Exception:  # noqa: BLE001 - budget scaling is best-effort, never fatal
+        effective_max_tokens = args.max_tokens
+
     t0 = time.time()
     engine = RedconEngine(config_path=args.config)
     data = engine.pack(
         task=args.task,
         repo=args.repo,
         workspace=args.workspace,
-        max_tokens=args.max_tokens,
+        max_tokens=effective_max_tokens,
         top_files=args.top_files,
         delta_from=args.delta,
         compression_profile=getattr(args, "compression_profile", None),
