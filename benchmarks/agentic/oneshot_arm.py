@@ -14,6 +14,7 @@ deliberately, never in CI. Dollar figures are the CLI's list-price accounting.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import subprocess
@@ -220,6 +221,9 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
             transcript_dir: Path | None, timeout: int) -> dict:
     base = {"repo": task["repo"], "sha": task["sha"], "arm": arm, "repeat": repeat,
             "stratum": task.get("stratum")}
+    # Clear any stale registration at this path before adding (recurring collision).
+    with contextlib.suppress(subprocess.CalledProcessError):
+        _git(repo_path, "worktree", "remove", "--force", str(worktree))
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
     try:
         budget = _repo_budget(worktree)
@@ -305,13 +309,17 @@ def main() -> int:
             for repeat in range(args.repeats):
                 for arm in arms:
                     counter += 1
-                    record = run_one(
-                        task, arm, repeat,
-                        repo_path=repo_paths[task["repo"]],
-                        worktree=args.worktrees / f"wt-{counter}",
-                        transcript_dir=args.out_dir / "transcripts",
-                        timeout=args.timeout,
-                    )
+                    try:
+                        record = run_one(
+                            task, arm, repeat,
+                            repo_path=repo_paths[task["repo"]],
+                            worktree=args.worktrees / f"wt-{counter}",
+                            transcript_dir=args.out_dir / "transcripts",
+                            timeout=args.timeout,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - one bad run must not stop the pass
+                        record = {"repo": task["repo"], "sha": task["sha"], "arm": arm,
+                                  "repeat": repeat, "error": f"{type(exc).__name__}: {exc}"}
                     handle.write(json.dumps(record, sort_keys=True) + "\n")
                     handle.flush()
                     print(f"[{arm}] {record['repo']}/{record['sha'][:9]} r{repeat} "
