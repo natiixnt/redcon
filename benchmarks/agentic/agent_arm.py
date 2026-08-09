@@ -85,7 +85,13 @@ ARM_SPECS = {
         "preinject": True,
         "preinject_budget": 120_000,
     },
+    # P-lite: inject only the redcon ranking list (top-K paths + one role line each,
+    # under ~500 tokens), no MCP, then run normally. Tests whether pointing the
+    # agent at the right files - without the full map - pays where the map did not.
+    "preinject_lite": {"mcp": "baseline", "guided": False, "preinject_lite": True},
 }
+PLITE_TOP_K = 10
+PLITE_MAX_CHARS = 2_000  # ~500 tokens; asserted so the list stays a hint, not a pack
 ARMS = ("redcon", "redcon_guided", "baseline")
 PREINJECT_BUDGET = 30_000
 MODEL = "sonnet"
@@ -97,6 +103,23 @@ DEFAULT_TIMEOUT = 1200  # seconds, hard ceiling per run on top of the turn cap
 def claude_bin() -> str:
     """The Claude Code executable, from the launcher env or the PATH."""
     return os.environ.get("CLAUDE_CODE_EXECPATH") or "claude"
+
+
+_CLI_VERSION: str | None = None
+
+
+def cli_version() -> str:
+    """The Claude Code CLI version string, cached, for drift control across runs."""
+    global _CLI_VERSION
+    if _CLI_VERSION is None:
+        try:
+            out = subprocess.run(
+                [claude_bin(), "--version"], capture_output=True, text=True, timeout=30
+            )
+            _CLI_VERSION = (out.stdout or out.stderr).strip().split()[0]
+        except Exception:  # noqa: BLE001 - version is metadata, never fatal
+            _CLI_VERSION = "unknown"
+    return _CLI_VERSION
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -235,7 +258,9 @@ def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False)
     return prompt
 
 
-def _preinject_pack(worktree: Path, task: dict, budget: int = PREINJECT_BUDGET) -> tuple[str, list[str]]:
+def _preinject_pack(
+    worktree: Path, task: dict, budget: int = PREINJECT_BUDGET
+) -> tuple[str, list[str]]:
     """A redcon pack for the task at the worktree.
 
     Returns the pasteable markdown and the repo-relative paths the pack included,
@@ -268,6 +293,38 @@ def _preinject_pack(worktree: Path, task: dict, budget: int = PREINJECT_BUDGET) 
         except ValueError:
             files.append(path)  # already relative or outside; keep as-is
     return render_pack_markdown(data), files
+
+
+def _ranking_list(worktree: Path, task: dict, k: int = PLITE_TOP_K) -> tuple[str, list[str]]:
+    """The top-k redcon ranking as a short list: path plus a one-line reason.
+
+    Returns the rendered list and the ranked paths. Raises if the list exceeds the
+    ~500-token cap, so P-lite can never quietly become a small pack.
+    """
+    from redcon.config import default_config  # noqa: PLC0415
+    from redcon.core import pipeline  # noqa: PLC0415
+    from redcon.stages.workflow import as_json_dict  # noqa: PLC0415
+
+    result = pipeline.run_pack(
+        task["phrasings"]["precise"],
+        worktree,
+        max_tokens=PREINJECT_BUDGET,
+        config=default_config(),
+        record_history=False,
+    )
+    ranked = (as_json_dict(result).get("ranked_files") or [])[:k]
+    lines = ["The most relevant files for this task, ranked by redcon:"]
+    paths: list[str] = []
+    for i, entry in enumerate(ranked, 1):
+        path = entry.get("path", "")
+        paths.append(path)
+        reasons = entry.get("reasons") or []
+        why = reasons[0] if reasons else f"{entry.get('role', 'source')} file"
+        lines.append(f"{i}. {path} - {why}")
+    listing = "\n".join(lines)
+    if len(listing) > PLITE_MAX_CHARS:
+        raise ValueError(f"ranking list is {len(listing)} chars, over the P-lite cap")
+    return listing, paths
 
 
 def build_command(prompt: str, mcp_config: Path) -> list[str]:
@@ -388,6 +445,7 @@ def run_one(
         "guided": spec["guided"],
         "stratum": task.get("stratum"),
         "changed_size": _task_size(task),
+        "cli_version": cli_version(),
     }
     prompt = agent_prompt(task, phrasing, guided=spec["guided"])
     command = build_command(prompt, mcp_config)
@@ -419,9 +477,20 @@ def run_one(
         base["preinject_budget"] = budget
         base["preinject_chars"] = len(pack_md)
         base["pack_files"] = pack_files
-        base["pack_file_hits"] = round(
-            len(changed & set(pack_files)) / len(changed), 6
-        ) if changed else 0.0
+        base["pack_file_hits"] = (
+            round(len(changed & set(pack_files)) / len(changed), 6) if changed else 0.0
+        )
+    if spec.get("preinject_lite"):
+        # Prefix only the ranking list (paths + one role line), not the map.
+        listing, ranked = _ranking_list(worktree, task)
+        prompt = f"{listing}\n\n---\n\n{prompt}"
+        command = build_command(prompt, mcp_config)
+        changed = set(task["changed_files"])
+        base["ranking_chars"] = len(listing)
+        base["ranked_files"] = ranked
+        base["ranking_file_hits"] = (
+            round(len(changed & set(ranked)) / len(changed), 6) if changed else 0.0
+        )
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -603,9 +672,13 @@ def main() -> int:
     parser.add_argument("--tasks", type=Path, default=_HERE / "tasks.jsonl")
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache" / "redcon-agentic")
     parser.add_argument("--out-dir", type=Path, default=_HERE / "results" / "agent")
-    parser.add_argument("--worktrees", type=Path, default=Path.home() / ".cache" / "redcon-agent-wt")
+    parser.add_argument(
+        "--worktrees", type=Path, default=Path.home() / ".cache" / "redcon-agent-wt"
+    )
     parser.add_argument("--arms", default=",".join(ARMS), help="comma-separated subset of arms")
-    parser.add_argument("--repeats", type=int, default=3, help="repetitions per task/arm (variance, not RNG seeds)")
+    parser.add_argument(
+        "--repeats", type=int, default=3, help="repetitions per task/arm (variance, not RNG seeds)"
+    )
     parser.add_argument("--phrasing", default="precise", choices=("precise", "medium", "vague"))
     parser.add_argument("--limit", type=int, default=0, help="cap number of tasks (0 = all)")
     parser.add_argument(
@@ -626,7 +699,11 @@ def main() -> int:
 
     arms = tuple(a.strip() for a in args.arms.split(",") if a.strip())
     all_tasks = read_tasks_jsonl(args.tasks)
-    stratum_of = {sha: name for name, group in _terciles(all_tasks).items() for sha in (t["sha"] for t in group)}
+    stratum_of = {
+        sha: name
+        for name, group in _terciles(all_tasks).items()
+        for sha in (t["sha"] for t in group)
+    }
 
     task_list = args.task_list or (PILOT_TASKS if args.pilot else None)
     if task_list:
@@ -638,7 +715,9 @@ def main() -> int:
         tasks = tasks[: args.limit]
     # Keep a task's own stratum if the corpus pinned one (heavy corpus does);
     # otherwise tag from the terciles of the loaded corpus.
-    tasks = [{**task, "stratum": task.get("stratum") or stratum_of.get(task["sha"])} for task in tasks]
+    tasks = [
+        {**task, "stratum": task.get("stratum") or stratum_of.get(task["sha"])} for task in tasks
+    ]
 
     specs = {spec.name: spec for spec in (*REPOS, *REPOS_HEAVY)}
     repo_paths: dict[str, Path] = {}
@@ -646,8 +725,10 @@ def main() -> int:
         spec = specs.get(name)
         if spec is None:
             continue  # unknown repo yields a per-task error record downstream
-        repo_paths[name] = _REPO_ROOT if name == "redcon" else ensure_clone(
-            spec.name, spec.url, spec.ref, args.cache
+        repo_paths[name] = (
+            _REPO_ROOT
+            if name == "redcon"
+            else ensure_clone(spec.name, spec.url, spec.ref, args.cache)
         )
 
     venv_python = os.environ.get("REDCON_VENV_PYTHON") or sys.executable
@@ -673,7 +754,9 @@ def main() -> int:
         max_runs=args.max_runs,
     ):
         if record.get("pilot_halt"):
-            print(f"pilot halted ({record['pilot_halt']}) after {record['after_runs']} runs this pass")
+            print(
+                f"pilot halted ({record['pilot_halt']}) after {record['after_runs']} runs this pass"
+            )
             _append_record(record, out_path)
             break
         _append_record(record, out_path)
