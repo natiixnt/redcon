@@ -76,3 +76,10 @@ default pipeline. Same task, same tree, same day as the table above:
 - Reduction percentages depend on repository shape more than on anything
   else. Run one pack on your own repository; that number is the only one
   that matters for you.
+
+## Agentic evaluation
+
+For a pre-registered, two-layer study on real commits - what the pack contains
+(97.8% file recall at a 96% context reduction) and whether it changes what an
+autonomous agent actually does - see the writeup in
+[docs/research/agentic-eval.md](research/agentic-eval.md).
