@@ -257,14 +257,22 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
             "cost_usd": data.get("total_cost_usd"),
             "input_tokens": usage.get("inputTokens"),
             "cache_read_tokens": usage.get("cacheReadInputTokens"),
+            # The injected context lands in cache_creation on the first (only) call,
+            # so this is where the equal-budget property is actually visible.
+            "cache_creation_tokens": usage.get("cacheCreationInputTokens"),
             "output_tokens": usage.get("outputTokens"),
+            # An empty result with non-zero output means the single turn was spent on
+            # a blocked tool attempt rather than a text answer; record it distinctly
+            # so it is not silently collapsed into a parse failure.
+            "num_turns": data.get("num_turns"),
+            "is_error": data.get("is_error"),
+            "terminal_reason": data.get("subtype"),
+            "empty_result": not result_text.strip(),
             "elapsed_wall": elapsed,
         }
     except subprocess.TimeoutExpired:
         return {**base, "error": "timeout"}
     finally:
-        import contextlib
-
         with contextlib.suppress(subprocess.CalledProcessError):
             _git(repo_path, "worktree", "remove", "--force", str(worktree))
 
