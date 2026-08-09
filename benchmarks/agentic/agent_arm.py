@@ -75,7 +75,16 @@ ARM_SPECS = {
     # P: no MCP. The prompt is prefixed with a redcon pack generated up front, so
     # the agent starts from the map instead of having to call for it. This removes
     # adoption from the equation and measures the pack's pure value against B.
-    "preinject": {"mcp": "baseline", "guided": False, "preinject": True},  # P
+    "preinject": {"mcp": "baseline", "guided": False, "preinject": True},  # P (30k)
+    # P120: pre-injection at a 120k budget, where the sweep shows ~0.9 coverage.
+    # Tests whether a near-complete map pays, and whether it pays in a loop (the
+    # larger map is re-read every turn) or only in short flows.
+    "preinject_120k": {
+        "mcp": "baseline",
+        "guided": False,
+        "preinject": True,
+        "preinject_budget": 120_000,
+    },
 }
 ARMS = ("redcon", "redcon_guided", "baseline")
 PREINJECT_BUDGET = 30_000
@@ -226,7 +235,7 @@ def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False)
     return prompt
 
 
-def _preinject_pack(worktree: Path, task: dict) -> tuple[str, list[str]]:
+def _preinject_pack(worktree: Path, task: dict, budget: int = PREINJECT_BUDGET) -> tuple[str, list[str]]:
     """A redcon pack for the task at the worktree.
 
     Returns the pasteable markdown and the repo-relative paths the pack included,
@@ -242,7 +251,7 @@ def _preinject_pack(worktree: Path, task: dict) -> tuple[str, list[str]]:
     result = pipeline.run_pack(
         task["phrasings"]["precise"],
         worktree,
-        max_tokens=PREINJECT_BUDGET,
+        max_tokens=budget,
         config=default_config(),
         record_history=False,
     )
@@ -402,10 +411,12 @@ def run_one(
     if spec.get("preinject"):
         # Prefix the prompt with a pack generated up front, then rebuild the
         # command. The agent starts from the map instead of calling for one.
-        pack_md, pack_files = _preinject_pack(worktree, task)
+        budget = spec.get("preinject_budget", PREINJECT_BUDGET)
+        pack_md, pack_files = _preinject_pack(worktree, task, budget)
         prompt = f"{pack_md}\n\n---\n\nUsing the context above, do the following.\n\n{prompt}"
         command = build_command(prompt, mcp_config)
         changed = set(task["changed_files"])
+        base["preinject_budget"] = budget
         base["preinject_chars"] = len(pack_md)
         base["pack_files"] = pack_files
         base["pack_file_hits"] = round(
