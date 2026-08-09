@@ -67,8 +67,27 @@ ARM_SPECS = {
     "redcon": {"mcp": "redcon", "guided": False},  # A
     "redcon_guided": {"mcp": "redcon", "guided": True},  # Ag
     "baseline": {"mcp": "baseline", "guided": False},  # B
+    # Agc: redcon plus the shipped installer guidance written to the worktree's
+    # AGENTS.md (which the CLI reads automatically), not an inline prompt line.
+    # The prompt is identical to baseline; the guidance is delivered exactly as
+    # `redcon mcp install` delivers it, so this arm measures the shipped product.
+    "redcon_config": {"mcp": "redcon", "guided": False, "install_rules": True},  # Agc
+    # P: no MCP. The prompt is prefixed with a redcon pack generated up front, so
+    # the agent starts from the map instead of having to call for it. This removes
+    # adoption from the equation and measures the pack's pure value against B.
+    "preinject": {"mcp": "baseline", "guided": False, "preinject": True},  # P (30k)
+    # P120: pre-injection at a 120k budget, where the sweep shows ~0.9 coverage.
+    # Tests whether a near-complete map pays, and whether it pays in a loop (the
+    # larger map is re-read every turn) or only in short flows.
+    "preinject_120k": {
+        "mcp": "baseline",
+        "guided": False,
+        "preinject": True,
+        "preinject_budget": 120_000,
+    },
 }
 ARMS = ("redcon", "redcon_guided", "baseline")
+PREINJECT_BUDGET = 30_000
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 MAX_TURNS = 30
@@ -216,6 +235,41 @@ def agent_prompt(task: dict, phrasing: str = "precise", *, guided: bool = False)
     return prompt
 
 
+def _preinject_pack(worktree: Path, task: dict, budget: int = PREINJECT_BUDGET) -> tuple[str, list[str]]:
+    """A redcon pack for the task at the worktree.
+
+    Returns the pasteable markdown and the repo-relative paths the pack included,
+    so we can measure how many ground-truth files the injected map even contained
+    (the heavy corpus has no layer-1 pack-coverage data). Generated through the
+    Python API so nothing is written into the worktree.
+    """
+    from redcon.config import default_config  # noqa: PLC0415
+    from redcon.core import pipeline  # noqa: PLC0415
+    from redcon.core.render import render_pack_markdown  # noqa: PLC0415
+    from redcon.stages.workflow import as_json_dict  # noqa: PLC0415
+
+    result = pipeline.run_pack(
+        task["phrasings"]["precise"],
+        worktree,
+        max_tokens=budget,
+        config=default_config(),
+        record_history=False,
+    )
+    data = as_json_dict(result)
+    raw = data.get("files_included") or [
+        item.get("path", "") for item in data.get("compressed_context", [])
+    ]
+    files: list[str] = []
+    for path in raw:
+        if not path:
+            continue
+        try:
+            files.append(str(Path(path).resolve().relative_to(worktree.resolve())))
+        except ValueError:
+            files.append(path)  # already relative or outside; keep as-is
+    return render_pack_markdown(data), files
+
+
 def build_command(prompt: str, mcp_config: Path) -> list[str]:
     """The full headless CLI command for one run.
 
@@ -341,6 +395,33 @@ def run_one(
         return {**base, "dry_run": True, "command": command}
 
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
+    if spec.get("install_rules"):
+        # Write redcon's shipped instruction block into the client rules files.
+        # The installer ships AGENTS.md, but headless Claude Code only reads
+        # CLAUDE.md, so the block must land there to reach this agent - place it
+        # in both (this is the config-file channel, and a 1.16 install target).
+        from redcon.mcp.instructions import (  # noqa: PLC0415
+            INSTRUCTIONS_BLOCK,
+            ensure_agent_instructions,
+        )
+
+        ensure_agent_instructions(worktree)  # AGENTS.md, as shipped today
+        (worktree / "CLAUDE.md").write_text(INSTRUCTIONS_BLOCK + "\n", encoding="utf-8")
+        base["rules_installed"] = True
+    if spec.get("preinject"):
+        # Prefix the prompt with a pack generated up front, then rebuild the
+        # command. The agent starts from the map instead of calling for one.
+        budget = spec.get("preinject_budget", PREINJECT_BUDGET)
+        pack_md, pack_files = _preinject_pack(worktree, task, budget)
+        prompt = f"{pack_md}\n\n---\n\nUsing the context above, do the following.\n\n{prompt}"
+        command = build_command(prompt, mcp_config)
+        changed = set(task["changed_files"])
+        base["preinject_budget"] = budget
+        base["preinject_chars"] = len(pack_md)
+        base["pack_files"] = pack_files
+        base["pack_file_hits"] = round(
+            len(changed & set(pack_files)) / len(changed), 6
+        ) if changed else 0.0
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -353,6 +434,10 @@ def run_one(
         )
         elapsed = round(time.monotonic() - started, 3)
         edited = _files_edited(worktree)
+        if spec.get("install_rules"):
+            # The rules file we wrote is not an agent edit; drop it so it cannot
+            # inflate recall or precision.
+            edited = [p for p in edited if Path(p).name not in ("AGENTS.md", "CLAUDE.md")]
         if transcript_dir is not None:
             transcript_dir.mkdir(parents=True, exist_ok=True)
             name = f"{task['sha'][:9]}-{arm}-{phrasing}-r{repeat}.jsonl"

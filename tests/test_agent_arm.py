@@ -55,6 +55,45 @@ def test_arms_map_to_configs_and_guidance() -> None:
     assert set(agent_arm.ARMS) == {"redcon", "redcon_guided", "baseline"}
 
 
+def test_agc_arm_installs_shipped_rules(tmp_path: Path) -> None:
+    # Agc uses the redcon server, no inline guidance, and installs the rules file.
+    assert agent_arm.ARM_SPECS["redcon_config"] == {
+        "mcp": "redcon",
+        "guided": False,
+        "install_rules": True,
+    }
+    # The rules delivery is redcon's own installer: it writes AGENTS.md with the
+    # redcon instruction block, so the arm measures the shipped product.
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from redcon.mcp.instructions import ensure_agent_instructions
+
+    ensure_agent_instructions(tmp_path)
+    agents = tmp_path / "AGENTS.md"
+    assert agents.exists()
+    assert "redcon" in agents.read_text(encoding="utf-8").lower()
+
+
+def test_preinject_arm_generates_pack_markdown(tmp_path: Path) -> None:
+    # P uses no MCP and pre-injects a pack; the agent gets a map, not the tools.
+    assert agent_arm.ARM_SPECS["preinject"] == {
+        "mcp": "baseline",
+        "guided": False,
+        "preinject": True,
+    }
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "handler.py").write_text("def handle(x):\n    return x\n", encoding="utf-8")
+    (repo / "util.py").write_text("def helper():\n    return 1\n", encoding="utf-8")
+    task = {"phrasings": {"precise": "handle incoming requests"}}
+    pack_md, pack_files = agent_arm._preinject_pack(repo, task)
+    assert isinstance(pack_md, str) and "Pack Report" in pack_md  # pasteable pack
+    # pack_files are repo-relative so they can be intersected with changed_files.
+    assert isinstance(pack_files, list)
+    assert "handler.py" in pack_files  # the relevant file made it into the map
+
+
 def test_build_command_uses_stream_json(tmp_path: Path) -> None:
     configs = agent_arm.write_mcp_configs(
         tmp_path, venv_python="/venv/bin/python", redcon_root=Path("/repo")
