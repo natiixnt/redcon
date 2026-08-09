@@ -141,6 +141,151 @@ Written before seeing P, to be honest with ourselves:
   data. The `pack_file_hits` metric guards this branch: a P loss only counts
   against the pack if the pack actually contained the ground-truth files.
 
-## Pass 2 results
+## Arm P120 (pre-injection at 120k) - registered before its run
 
-<!-- Filled in after pass 2 completes. -->
+The sweep shows a 120k pack reaches ~0.90 coverage, so P120 tests pre-injection
+with a near-complete map: 12 tasks x 2 repeats precise = 24 runs, pack-file-hits
+recorded.
+
+**Hypothesis (registered before the run):** at ~0.9 coverage P120 improves recall
+over B, but cost may not fall in a long loop, because the 120k map is re-read every
+turn. The result decides whether push pays in interactive loops too or only in
+short flows. **Technical caveat, also registered:** a 120k prefix plus a growing
+conversation may approach the model's context window; if runs are truncated, that
+is itself a finding - a full-coverage map does not fit in an interactive loop - and
+is reported as such rather than discarded.
+
+## Coverage sweep (budget diagnostic, deterministic, no agent cost)
+
+Pre-injection carried only 64% of the ground-truth files at the 30k default, and
+the heavy corpus has no layer-1 data, so this sweep runs the layer-1 pack over
+tasks-heavy at four budgets to tell a budget limit from a ranking limit
+(`coverage_sweep.py`, `coverage_sweep.json`):
+
+| budget | pack file-hits |
+|---|---|
+| 12k | 0.358 |
+| 30k | 0.627 |
+| 60k | 0.738 |
+| 120k | 0.896 |
+
+Coverage climbs steadily toward ~1.0, so **this is a budget limit, not a ranking
+limit**: redcon's ranking surfaces the right files on django/sympy given enough
+tokens, and 30k is simply too small for multi-million-token repos. The 30k pack
+in arm P was therefore an incomplete map by construction.
+
+## Results (204 runs: A, B, Ag precise; Ag, B medium; Agc, P precise)
+
+### All arms, precise (n=36 each)
+
+| arm | cost/run | turns | recall | precision | capped | adopted |
+|---|---|---|---|---|---|---|
+| B baseline | $0.78 | 19.8 | 0.688 | 0.799 | 10 | 0/36 |
+| A redcon | $0.82 | 23.2 | 0.618 | 0.822 | 16 | 0/36 |
+| Ag guided | $0.91 | 25.7 | 0.617 | 0.814 | 19 | 0/36 |
+| Agc config | $0.69 | 20.8 | 0.588 | 0.676 | 12 | 4/36 |
+| P preinject | $1.84 | 22.2 | 0.634 | 0.412 | 15 | 0/36 |
+
+Per-stratum recall (precise, n=12/cell):
+
+| stratum | B | A | Ag | Agc | P |
+|---|---|---|---|---|---|
+| small | 0.611 | 0.535 | 0.486 | 0.375 | 0.549 |
+| medium | 0.623 | 0.595 | 0.683 | 0.675 | 0.536 |
+| large | 0.830 | 0.723 | 0.682 | 0.714 | 0.817 |
+
+### Hypothesis outcomes
+
+- **H1 (pack value, Ag vs B): not supported.** Ag did not beat B - it cost more
+  ($0.91 vs $0.78) at lower recall (0.617 vs 0.688), because adoption was zero.
+  The clean value test is arm P, below.
+- **H2 (cost of non-adoption, A vs Ag): supported and then some.** Carrying redcon
+  unused cost more than baseline (A $0.82 vs B $0.78); adding the guidance line made
+  it worse still (Ag $0.91, 25.7 turns, 19/36 capped). Adoption stayed at zero.
+- **H3 (wording, precise vs medium): not supported.** On the distinguishable
+  subset (8/12 tasks; the 4 sympy subjects collapse medium onto precise), Ag medium
+  recall 0.635 vs B 0.543 is within noise and adoption was zero in both, so there
+  is no pack effect for wording to modulate.
+
+### Adoption
+
+Zero through the prompt channel (A 0/36, Ag 0/36). The **CLAUDE.md config channel
+(Agc) is the only one with any adoption at all: 4/36** - and only `redcon_rank`,
+only on sympy. (Headless Claude Code reads CLAUDE.md, not AGENTS.md; redcon's
+installer writes only AGENTS.md, so its shipped guidance never reaches this agent -
+a 1.16 delivery bug.)
+
+### Cost decomposition (mean tokens/run, precise)
+
+| arm | cache-read | cache-write | output |
+|---|---|---|---|
+| B | 1.31M | 42k | 9.2k |
+| Ag | 1.55M | 44k | 11.8k |
+| P | 2.78M | 127k | 10.8k |
+
+**P's 2.4x cost is the injected map, and it scales with turns:** the 30k pack is
+cache-written once (~3x baseline) and re-read every turn (2.78M, ~2x). So
+pre-injection pays most in **one- and few-turn flows** (CI, batch jobs, review
+bots, single API calls) and least in long interactive loops - which narrows the
+flagship auto-injection use case in 1.16 to automated modes.
+
+### Ag: unheard guidance is worse than no guidance
+
+Ag was the single worst arm. Versus A, its extra turns went to *more* manual
+search - Read 6.4 vs 4.7, plus ToolSearch 0.9 - the agent hunted around after
+being told about tools it never called, inflating turns (25.7) and cap-outs
+(19/36) with no offsetting use.
+
+### Agc: causal chain, and context has value at the start
+
+The 4 adopters each called `redcon_rank` once (20 files ranked). Timing decided
+value: the two early calls (turns 6-7, both sympy/afb25b0d7 and sympy/d3f6039f8)
+reached recall 1.0; the two late calls (turns 27 and 33, after the agent had
+already grepped) landed recall 0.0. **Ranking is only useful before the agent has
+built its own map** - context has value at the start of a run, not mid-run.
+
+### P: pack value once adoption is removed
+
+P did not beat B: cost 2.4x, recall 0.634 vs 0.688, and **precision collapsed to
+0.412** (vs 0.799). Mechanism, from the transcripts: the agent anchors on the
+injected map and edits files it lists that are not targets - e.g. django/36be97b9
+rep0 edited 8 files, 5 of them non-targets, one taken straight from the pack
+(`tests/staticfiles_tests/.../ignored.css`). Averaged 3.3 superfluous edits/run.
+
+P's recall tracks the pack's coverage almost exactly (0.634 vs pack-file-hits
+0.627): the agent trusts the map, so an incomplete map caps recall below what free
+grep achieves (0.688).
+
+**Exploratory, post-hoc, small n (not a confirmed result):** on the 6 runs where
+the injected pack happened to be complete (pack-file-hits = 1.0), P recall was
+0.78 - above baseline's 0.69. This is consistent with the hypothesis "fix coverage
+(a budget fix, per the sweep) and push may pay", but n=6 and it is not a
+pre-registered comparison; treat it as a lead, not a finding.
+
+### The "inject before start" thesis
+
+Three independent pieces of evidence converge: (1) Ag spent its extra turns
+searching instead of ranking; (2) Agc's `redcon_rank` helped only when it came
+early, not late; (3) P did best exactly on the tasks where the up-front map was
+complete. The pack's value lands when it is present at the start of the run, which
+is the push (pre-injection) mode, not the pull (call-a-tool-mid-run) mode.
+
+## Bottom line
+
+On large repositories, redcon faces **two distinct problems**, both measured:
+
+1. **Delivery / adoption.** The autonomous sonnet agent will not reach for redcon
+   on its own: 0/36 unprompted, 0/36 with a prompt line, 4/36 via the CLAUDE.md
+   rule. Guidance alone does not move it.
+2. **Budget-bounded coverage.** At the 30k default the pack covers only 64% of the
+   changed files on django/sympy (a budget limit - it reaches 0.90 at 120k), and
+   pre-injecting an incomplete map is measured harm (precision 0.41, recall below
+   baseline).
+
+Value is delivered by **push, not pull** - but push only pays once the budget/
+coverage gap is closed and in automated, short-turn flows where re-reading the map
+is cheap. This reprioritizes 1.16 toward budget-scaled packing and auto-injection
+in CI/batch modes rather than tool-description tweaks; the full backlog is in the
+1.16 notes. The layer-1 results (97.8% file recall, contexts 63-93% smaller) stand
+for small and medium repositories; these limits are specific to multi-million-token
+repos in headless autonomous mode with sonnet.

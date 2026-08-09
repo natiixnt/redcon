@@ -1,0 +1,26 @@
+[
+  {
+    "budget": 12000,
+    "file_hits": 0.3576,
+    "region_containment": 0.1323,
+    "n": 12
+  },
+  {
+    "budget": 30000,
+    "file_hits": 0.6275,
+    "region_containment": 0.1845,
+    "n": 12
+  },
+  {
+    "budget": 60000,
+    "file_hits": 0.7381,
+    "region_containment": 0.2536,
+    "n": 12
+  },
+  {
+    "budget": 120000,
+    "file_hits": 0.8958,
+    "region_containment": 0.2536,
+    "n": 12
+  }
+]
