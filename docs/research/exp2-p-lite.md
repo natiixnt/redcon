@@ -16,9 +16,25 @@ the content, and let it read the files itself.
 ## Design
 
 Inject at the start of the prompt a short list - the top ranked file paths plus a
-one-line note on why (role or match), **under ~500 tokens total** - then run the
-agent normally with its file tools and no MCP. The agent still reads whatever it
-needs; it just starts from the right files instead of grepping for them.
+one-line note on why (role or match) - then run the agent normally with its file
+tools and no MCP. The agent still reads whatever it needs; it just starts from the
+right files instead of grepping for them.
+
+### List size, pinned
+
+**K = 10** ranked files; each entry is a path plus a one-sentence role. Ten entries
+at roughly a path (~40 chars) plus a short role (~60 chars) is about 1,000
+characters, i.e. **~250 tokens - comfortably under the ~500-token cap**. The cap is
+asserted at build time so an over-long list fails fast rather than quietly turning
+P-lite into a small pack.
+
+### Drift control against the reused baseline
+
+P-lite reuses the night-2 baseline B (run with CLI 2.1.220, model claude-sonnet-5)
+rather than re-running it. To guard against silent drift, each new P-lite run
+records the CLI and model version. If either differs from the night-2 baseline, add
+**6 fresh B control runs** on the same tasks under the new versions and report both
+baseline lines (reused and fresh) so any shift is visible, not absorbed.
 
 - **Arms:** P-lite vs the **existing** baseline B (reuse the night-2 B records; no
   new baseline runs needed).
