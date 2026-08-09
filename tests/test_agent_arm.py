@@ -281,3 +281,21 @@ def test_run_one_dry_run_builds_command_without_spawning(tmp_path: Path) -> None
     assert any(agent_arm.GUIDANCE in part for part in record["command"])
     assert "--strict-mcp-config" in record["command"]
     assert not (tmp_path / "wt").exists()  # nothing was checked out
+
+
+def test_plite_arm_builds_a_capped_ranking_list(tmp_path: Path):
+    # P-lite uses no MCP and injects only the ranking list, not the pack.
+    assert agent_arm.ARM_SPECS["preinject_lite"] == {
+        "mcp": "baseline",
+        "guided": False,
+        "preinject_lite": True,
+    }
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "auth.py").write_text("def login(u, p):\n    return True\n", encoding="utf-8")
+    (repo / "db.py").write_text("def query(q):\n    return []\n", encoding="utf-8")
+    task = {"phrasings": {"precise": "add rate limiting to login"}}
+    listing, ranked = agent_arm._ranking_list(repo, task)
+    assert "ranked by redcon" in listing
+    assert isinstance(ranked, list) and ranked  # non-empty ranking
+    assert len(listing) <= agent_arm.PLITE_MAX_CHARS  # the ~500-token cap holds
