@@ -2,3 +2,5 @@
 results/**/mcp_*.json
 # Scratch worktrees, if ever placed under results.
 results/**/wt-*/
+# Raw per-run transcripts; the committed archive is transcripts.tar.gz
+results/**/transcripts/
