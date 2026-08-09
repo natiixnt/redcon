@@ -97,6 +97,10 @@ measurements. An explicit `--max-tokens` always wins, and if it is small for a
 large repository redcon prints a one-line coverage warning to stderr. Small
 repositories are unaffected.
 
+Note: setting `[budget].max_tokens` to exactly the built-in default (30,000) is
+indistinguishable from leaving it unset, so it is still subject to auto-scaling. To
+pin 30k on a large repository, configure a different value or pass `--max-tokens`.
+
 ## Agentic evaluation
 
 For a pre-registered, two-layer study on real commits - what the pack contains
