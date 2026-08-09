@@ -38,12 +38,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_rank",
         "description": (
-            "Rank repository files by relevance to a task using keyword and "
-            "import-graph signals. Call this FIRST on any new task, before "
-            "searching or reading files: it replaces guessing paths, broad "
-            "grep sweeps, and directory listings. Returns the top-K paths "
-            "with scores and reasons; follow up with redcon_compress on the "
-            "top hits instead of reading them whole."
+            "Rank repository files by relevance to a task. Call this FIRST on a "
+            "new task, before grepping or reading: it returns the top-K paths with "
+            "scores and reasons. Follow up with redcon_compress on the top hits."
         ),
         "inputSchema": {
             "type": "object",
@@ -69,11 +66,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_overview",
         "description": (
-            "Lightweight repository map grouped by directory, filtered to "
-            "modules relevant to the task. Use when orienting in an "
-            "unfamiliar repo instead of ls -R, find, or reading READMEs; "
-            "costs a few hundred tokens. For actual code structure "
-            "(signatures), use redcon_repo_map instead."
+            "Lightweight repository map grouped by directory, filtered to the "
+            "task's modules. Use to orient instead of ls -R or find; costs a few "
+            "hundred tokens. For signatures, use redcon_repo_map."
         ),
         "inputSchema": {
             "type": "object",
@@ -87,11 +82,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_compress",
         "description": (
-            "Task-scoped compressed view of one file: signatures, imports "
-            "and the sections relevant to the task, typically 3-10x fewer "
-            "tokens than the raw file. Default to this INSTEAD of reading a "
-            "whole file; fetch the full file only if the compressed view "
-            "turns out to be insufficient."
+            "Task-scoped compressed view of one file (signatures, imports and the "
+            "relevant sections), typically 3-10x fewer tokens. Prefer this over "
+            "reading a whole file; fetch the full file only if it is insufficient."
         ),
         "inputSchema": {
             "type": "object",
@@ -114,11 +107,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_search",
         "description": (
-            "Regex search over the repository. scope='ranked' (default) "
-            "searches only the files relevant to the task, so matches come "
-            "pre-filtered by relevance instead of drowning you in hits; "
-            "scope='all' covers the whole repo. Prefer this over raw grep "
-            "on large repositories."
+            "Regex search. scope='ranked' (default) limits matches to the task's "
+            "relevant files; scope='all' covers the whole repo. Prefer over raw "
+            "grep on large repositories."
         ),
         "inputSchema": {
             "type": "object",
@@ -146,11 +137,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_budget",
         "description": (
-            "Plan how to fit a set of files into a token budget, choosing a "
-            "compression strategy per file. Use BEFORE reading several files "
-            "at once, whenever their combined size could blow the context: "
-            "returns per-file token costs, chosen strategies, and which "
-            "files must be dropped to stay under the budget."
+            "Plan how to fit a set of files under a token budget, choosing a "
+            "compression strategy per file. Use before reading several files at "
+            "once; returns per-file token costs, strategies, and which to drop."
         ),
         "inputSchema": {
             "type": "object",
@@ -173,12 +162,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_structural_search",
         "description": (
-            "Search code by AST pattern (ast-grep), not regex. Patterns "
-            "like `class $NAME { $$$ }` match real class declarations and "
-            "skip text occurrences inside comments / strings. Available "
-            "when ast-grep is on PATH or redcon[ast_grep] is installed; "
-            "returns backend=unavailable otherwise so callers can fall "
-            "back to redcon_search."
+            "Search by AST pattern (ast-grep), not regex, so matches skip comments "
+            "and strings. Needs ast-grep on PATH or redcon[ast_grep]; returns "
+            "backend=unavailable otherwise so callers fall back to redcon_search."
         ),
         "inputSchema": {
             "type": "object",
@@ -197,13 +183,10 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_repo_map",
         "description": (
-            "Repo map: top ranked files plus their class/function "
-            "signatures with line numbers, fitted under a token budget. "
-            "Use when you need code structure across many files at once - "
-            "one call replaces opening files one by one to learn their "
-            "shape. Unlike redcon_overview it emits actual signatures, not "
-            "just paths. Degrades to a path-only listing when the "
-            "redcon[symbols] extra is missing rather than failing."
+            "Repo map: top ranked files plus their class and function signatures "
+            "with line numbers, under a token budget. Use for code structure across "
+            "many files at once. Degrades to a path-only listing without the "
+            "redcon[symbols] extra."
         ),
         "inputSchema": {
             "type": "object",
@@ -219,12 +202,9 @@ _TOOL_SCHEMAS = [
     {
         "name": "redcon_quality_check",
         "description": (
-            "Run a shell command, compress its output, and verify the "
-            "compression against the M8 quality harness (must-preserve "
-            "patterns, reduction floor, determinism). Use this instead "
-            "of redcon_run when you want a verdict before consuming the "
-            "compressed bytes - the response is small and the verdict is "
-            "structured."
+            "Run a shell command, compress its output, and verify the compression "
+            "against the M8 quality harness. Use instead of redcon_run when you want "
+            "a structured pass/fail verdict on the compression."
         ),
         "inputSchema": {
             "type": "object",
@@ -248,13 +228,10 @@ _TOOL_SCHEMAS = [
         "name": "redcon_run",
         "description": (
             "Run a shell command and return its output compressed for LLM "
-            "consumption via schema-aware compressors (pytest, git "
-            "diff/status/log, builds, coverage, kubectl and more). Use "
-            "INSTEAD of a raw shell whenever output may exceed a screenful "
-            "- test runs, diffs, logs. The token caps are hard guarantees, "
-            "and failures keep their essential detail (failing test names, "
-            "error lines). DISABLED by default because it executes commands; "
-            "set REDCON_MCP_ENABLE_RUN=1 on the server to enable it."
+            "consumption (pytest, git diff/status/log, builds, coverage and more). "
+            "Use instead of a raw shell when output may exceed a screenful; token "
+            "caps are hard and failures keep their essential detail. DISABLED by "
+            "default; set REDCON_MCP_ENABLE_RUN=1 to enable."
         ),
         "inputSchema": {
             "type": "object",

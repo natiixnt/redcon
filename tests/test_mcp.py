@@ -204,3 +204,19 @@ def test_dispatch_rank(tmp_path):
     )
     assert "error" not in result
     assert "files" in result
+
+
+def test_tool_schema_size_stays_slim():
+    """Hard caps so the MCP tool descriptions cannot bloat the per-session
+    context again. The night-2 evaluation showed the schemas are dead overhead
+    when adoption is low, so keep them tight."""
+    import json
+
+    from redcon.mcp.server import _TOOL_SCHEMAS
+
+    desc_chars = sum(len(s["description"]) for s in _TOOL_SCHEMAS)
+    schema_chars = len(json.dumps(_TOOL_SCHEMAS))
+    assert desc_chars <= 2100, f"tool descriptions grew to {desc_chars} chars"
+    assert schema_chars <= 7000, f"tool schema grew to {schema_chars} chars"
+    # The load-bearing guidance must survive any future trim.
+    assert "FIRST" in _TOOL_SCHEMAS[0]["description"]  # redcon_rank
