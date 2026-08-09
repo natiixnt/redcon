@@ -452,6 +452,10 @@ def run_one(
     if dry_run:
         return {**base, "dry_run": True, "command": command}
 
+    # Clear any stale registration at this path before adding (recurring collision
+    # from aborted prior runs; the finally block also removes it after each run).
+    with contextlib.suppress(subprocess.CalledProcessError):
+        _git(repo_path, "worktree", "remove", "--force", str(worktree))
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
     if spec.get("install_rules"):
         # Write redcon's shipped instruction block into the client rules files.
