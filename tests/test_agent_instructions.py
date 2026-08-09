@@ -14,20 +14,20 @@ def _statuses(results: list[dict]) -> dict[str, str]:
     return {r["file"]: r["status"] for r in results}
 
 
-def test_creates_agents_md_but_not_claude_md(tmp_path: Path):
-    """AGENTS.md is created; CLAUDE.md belongs to the user and is not."""
+def test_creates_both_agents_md_and_claude_md(tmp_path: Path):
+    """On a fresh directory both AGENTS.md and CLAUDE.md are created with the
+    block, so the guidance reaches Claude Code, which reads only CLAUDE.md."""
     results = ensure_agent_instructions(tmp_path)
     statuses = _statuses(results)
 
     assert statuses["AGENTS.md"] == "created"
-    assert statuses["CLAUDE.md"] == "skipped"
-    assert (tmp_path / "AGENTS.md").exists()
-    assert not (tmp_path / "CLAUDE.md").exists()
+    assert statuses["CLAUDE.md"] == "created"
 
-    text = (tmp_path / "AGENTS.md").read_text()
-    assert "redcon_rank" in text
-    assert "<!-- redcon:begin -->" in text
-    assert "<!-- redcon:end -->" in text
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        text = (tmp_path / name).read_text()
+        assert "redcon_rank" in text
+        assert "<!-- redcon:begin -->" in text
+        assert "<!-- redcon:end -->" in text
 
 
 def test_appends_to_existing_files_preserving_content(tmp_path: Path):

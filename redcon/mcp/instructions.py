@@ -6,8 +6,10 @@ the agent prefer them over its own grep and whole-file reads. A short
 instruction block in the repo's agent guidance files closes that gap.
 
 AGENTS.md is the cross-agent convention (Codex, Cursor, Gemini CLI and
-others read it) and is created when missing. CLAUDE.md belongs to the
-user, so redcon only appends to it when the file already exists.
+others read it). CLAUDE.md is what Claude Code reads. Both are created
+when missing, because headless Claude Code (claude -p) reads CLAUDE.md
+but not AGENTS.md, so writing only AGENTS.md left the guidance invisible
+to it.
 
 The block is delimited by marker comments and rewritten in place, so
 repeated runs are idempotent and user content around it is preserved.
@@ -40,9 +42,15 @@ files.
 {_END}"""
 
 # (filename, create when missing)
+#
+# CLAUDE.md is created when missing, not only appended: headless Claude Code
+# (claude -p) reads CLAUDE.md but not AGENTS.md, so writing only AGENTS.md left
+# the guidance invisible to that agent. The block is marker-delimited and
+# idempotent, so a created CLAUDE.md holds only the redcon block and stays easy
+# to remove.
 _TARGET_FILES: list[tuple[str, bool]] = [
     ("AGENTS.md", True),
-    ("CLAUDE.md", False),
+    ("CLAUDE.md", True),
 ]
 
 
