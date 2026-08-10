@@ -38,6 +38,14 @@ _STOPWORDS = {
 _SOURCE_EXTS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 
 
+def _is_valid(record: dict) -> bool:
+    """A record counts as done only if a real model call succeeded: no error, not
+    session-limited, and a positive list-price cost."""
+    if record.get("error") or record.get("is_error") or record.get("session_limited"):
+        return False
+    return (record.get("cost_usd") or 0) > 0
+
+
 def _claude_bin() -> str:
     import os
 
@@ -271,6 +279,10 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
             "is_error": data.get("is_error"),
             "terminal_reason": data.get("subtype"),
             "empty_result": not result_text.strip(),
+            # Subscription session-cap hit: the CLI returns an error string with
+            # no model usage. Flag it so the pass stops and resumes cleanly rather
+            # than burning the rest of the run on junk rows.
+            "session_limited": bool(data.get("is_error")) and "session limit" in result_text.lower(),
             "elapsed_wall": elapsed,
         }
     except subprocess.TimeoutExpired:
@@ -312,6 +324,21 @@ def main() -> int:
 
     out_path = args.out_dir / "records.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Resume: keep only valid records already on disk and skip their cells, so a
+    # pass cut short by the session cap can be re-run without duplicating work or
+    # leaving junk rows behind.
+    existing = []
+    if out_path.exists():
+        existing = [json.loads(line) for line in out_path.read_text().splitlines() if line.strip()]
+    valid_existing = [r for r in existing if _is_valid(r)]
+    done = {(r["sha"], r["arm"], r["repeat"]) for r in valid_existing}
+    if len(valid_existing) != len(existing):
+        out_path.write_text(
+            "".join(json.dumps(r, sort_keys=True) + "\n" for r in valid_existing), encoding="utf-8"
+        )
+        print(f"resume: kept {len(valid_existing)} valid, dropped {len(existing) - len(valid_existing)} junk rows")
+
     counter = 0
     with out_path.open("a", encoding="utf-8") as handle:
         for task in tasks:
@@ -320,6 +347,8 @@ def main() -> int:
             for repeat in range(args.repeats):
                 for arm in arms:
                     counter += 1
+                    if (task["sha"], arm, repeat) in done:
+                        continue
                     try:
                         record = run_one(
                             task, arm, repeat,
@@ -331,6 +360,11 @@ def main() -> int:
                     except Exception as exc:  # noqa: BLE001 - one bad run must not stop the pass
                         record = {"repo": task["repo"], "sha": task["sha"], "arm": arm,
                                   "repeat": repeat, "error": f"{type(exc).__name__}: {exc}"}
+                    if record.get("session_limited"):
+                        print(f"SESSION LIMIT reached at {record['repo']}/{record['sha'][:9]} "
+                              f"{arm} r{repeat}; stopping. Re-run to resume from here.")
+                        print(f"wrote records to {out_path}")
+                        return 2
                     handle.write(json.dumps(record, sort_keys=True) + "\n")
                     handle.flush()
                     print(f"[{arm}] {record['repo']}/{record['sha'][:9]} r{repeat} "
