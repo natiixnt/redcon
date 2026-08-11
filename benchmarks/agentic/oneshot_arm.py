@@ -122,9 +122,12 @@ def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[s
             record_history=False,
         )
     )
-    entries = data.get("compressed_context") or []
-    files = [e["path"] for e in entries if e.get("path")]
-    context = "\n\n".join(e["text"] for e in entries if e.get("text"))
+    # Build files and context from the SAME filtered entries (both a path and
+    # non-empty text), so an entry with a path but empty text can never count as
+    # a file the model was told about but never actually saw.
+    entries = [e for e in (data.get("compressed_context") or []) if e.get("path") and e.get("text")]
+    files = [e["path"] for e in entries]
+    context = "\n\n".join(e["text"] for e in entries)
     return context, files
 
 
