@@ -101,10 +101,16 @@ def naive_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[st
 
 
 def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[str]]:
-    """The redcon pack for the task, rendered, plus the files it included."""
+    """The redcon pack's *content* for the task, plus the files it included.
+
+    This is the compressed, symbol-extracted code redcon actually delivers to an
+    agent (the ``text`` of each ``compressed_context`` entry, already path-headed),
+    not ``render_pack_markdown`` - that renders the human-readable pack *report*
+    (budget stats, token-estimator notes), which carries no editable code and would
+    leave this arm with nothing to diff from.
+    """
     from redcon.config import default_config  # noqa: PLC0415
     from redcon.core import pipeline  # noqa: PLC0415
-    from redcon.core.render import render_pack_markdown  # noqa: PLC0415
     from redcon.stages.workflow import as_json_dict  # noqa: PLC0415
 
     data = as_json_dict(
@@ -116,8 +122,10 @@ def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[s
             record_history=False,
         )
     )
-    files = list(data.get("files_included") or [])
-    return render_pack_markdown(data), files
+    entries = data.get("compressed_context") or []
+    files = [e["path"] for e in entries if e.get("path")]
+    context = "\n\n".join(e["text"] for e in entries if e.get("text"))
+    return context, files
 
 
 def _repo_budget(worktree: Path) -> int:
