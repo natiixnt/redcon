@@ -19,10 +19,19 @@ runs) redcon delivered **no measured end-task improvement through any channel
 tested**: the agent will not reach for it (0-11% adoption across three delivery
 channels), and pre-injecting the pack does not beat baseline in a multi-turn loop
 at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost, with a 33%
-turn-cap rate; precision is intact once redcon's own build artifact is excluded). A deterministic sweep shows the coverage ceiling is a **budget limit,
-not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). The
-layer-1 selection quality stands; the open gap is delivery, and it is specific to
-autonomous multi-turn agents on multi-million-token repos.
+turn-cap rate; precision is intact once redcon's own build artifact is excluded).
+A deterministic sweep shows the coverage ceiling is a **budget limit,
+not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Two
+follow-up experiments closed the remaining delivery questions, both negative: at
+equal budget redcon's selection does **not** beat cheap keyword retrieval in a
+one-shot, tool-less call (Experiment 1), and injecting only the ranking list does
+**not** beat baseline in a loop (Experiment 2). Redcon's demonstrated value is
+therefore **deterministic, budget-capped, auditable packing with measured token
+savings versus an agent reading the repository by hand (layer 1)** - not an
+end-task quality improvement. Selection quality does not convert into one-shot
+edit superiority over cheap keyword retrieval at equal budget, and push delivery
+is closed for interactive use at any weight (full map, 120k, top-10 list). No
+claim of end-task quality improvement is made anywhere in this evaluation.
 
 ## Setup
 
@@ -142,21 +151,57 @@ token repos because of budget, not ranking. redcon finds the files given tokens.
 - Layer-1 selection quality does not imply end-task value; measuring that gap is
   the point of layer 2.
 
+## Registered questions: resolved
+
+The two directions registered above were run and both came back negative.
+
+1. **Single- and few-turn flows (Experiment 1, one-shot selection quality).**
+   Resolved: **negative.** A single tool-less model call per task, redcon's
+   compressed pack content versus a pinned naive whole-file keyword retrieval at
+   equal budget (96 valid cells, 24 per condition). On small repos naive wins on
+   raw overlap (0.521 vs 0.271) and efficiency; on heavy repos the two tie on raw
+   overlap (0.122 vs 0.118), a tie carried by redcon's higher parse rate (13/24 vs
+   9/24), not per-parse selection quality (conditional overlap 0.225 vs 0.315).
+   Redcon's layer-1 selection quality does not convert into one-shot edit
+   superiority over cheap keyword retrieval. Full data and tables:
+   `docs/research/exp1-one-shot.md`.
+2. **P-lite (Experiment 2, inject the ranking not the map).** Resolved:
+   **negative.** Injecting only the top-10 ranking list (about 145 tokens) then
+   running the agent normally (24 valid runs vs the reused night-2 baseline B)
+   held cost (0.66 vs 0.78) but did not beat baseline on recall (0.556 vs 0.688)
+   and collapsed precision (0.465 vs 0.881). The injected list covered only 27% of
+   the ground-truth files, anchoring edits on a mostly-wrong set - the same
+   anchoring the night-2 full-map push arms showed. Push delivery is closed for
+   interactive use at any weight (full map, 120k, top-10 list). Full data:
+   `docs/research/exp2-p-lite.md`.
+
 ## Open questions (registered)
 
-Two directions the data points to but does not settle:
+One direction the data points to but does not settle:
 
-1. **Single- and few-turn flows.** Every layer-2 run here is a 30-turn loop, where
-   a pre-injected map is re-read many times. The one delivery mode not covered is
-   one-shot or few-turn, non-interactive use (CI checks, review bots, one-shot API
-   calls), where the map is paid for once. This is the only place push might pay,
-   and it is the honest scope for any auto-injection bet.
-2. **P-lite.** Night 2 injected the full pack. The Agc evidence (an early
-   `redcon_rank` helped; a full map in a loop hurt) suggests injecting only the
-   **ranking list** - paths plus a one-line role, a few hundred tokens - may give
-   the "start from the right files" benefit without the anchoring, precision and
-   cost penalties of the full map. Hypothesis: cost ~= baseline, recall above
-   baseline, precision intact.
+1. **Adaptive rendering (Experiment 3).** Experiment 1 found that on heavy repos
+   redcon only reaches parity via parse rate, and that naive's advantage rode on
+   delivering whole files the model could edit exactly, while redcon delivered
+   symbol-compressed fragments. That isolates a testable hypothesis: the drag was
+   the render *format*, not the *ranking*. Adaptive rendering walks the same
+   ranking order but includes each file whole when it fits the remaining budget
+   and falls back to the compressed entry only on overflow (see the adaptive
+   rendering change and `docs/research/exp3-adaptive-rendering.md`). Arm W reuses
+   the Experiment 1 harness unchanged (same 24 tasks, 2 repeats, equal budget,
+   tool-less single call, forced unified diff) with `redcon_context` built from
+   adaptive-mode output. Pre-registered hypotheses:
+   - **H1:** W file-overlap >= naive, pooled and per corpus (ranking does not hurt
+     once the format is equal).
+   - **H2:** W beats redcon-compressed on file-overlap and line-overlap (format,
+     not ranking, was the drag).
+   - **H3:** W parse rate on heavy >= naive parse rate on heavy (the
+     commit-to-a-valid-diff edge survives the format change).
+
+   Interpretation is fixed before the run: all three hold and adaptive becomes the
+   next release default with the measurement cited; H1 fails and positioning stays
+   cost-and-determinism only with adaptive optional; H2 fails and compression was
+   not the drag, so no default change and investigate before further spend; mixed
+   is exploratory only, no default change without a follow-up decision.
 
 ## Reproduce
 
