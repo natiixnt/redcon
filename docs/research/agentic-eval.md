@@ -18,8 +18,8 @@ redcon and grepped by hand. On large repos (night 2, django and sympy, 228 agent
 runs) redcon delivered **no measured end-task improvement through any channel
 tested**: the agent will not reach for it (0-11% adoption across three delivery
 channels), and pre-injecting the pack does not beat baseline in a multi-turn loop
-at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost and half the
-precision). A deterministic sweep shows the coverage ceiling is a **budget limit,
+at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost, with a 33%
+turn-cap rate; precision is intact once redcon's own build artifact is excluded). A deterministic sweep shows the coverage ceiling is a **budget limit,
 not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). The
 layer-1 selection quality stands; the open gap is delivery, and it is specific to
 autonomous multi-turn agents on multi-million-token repos.
@@ -84,14 +84,20 @@ changed files. The failure is behavioural (adoption), not ranking.
 a one-line prompt hint, **Agc** plus the rule in CLAUDE.md, **P** pre-inject a 30k
 pack, **P120** pre-inject a 120k pack.
 
+Precision is the corrected value (2026-08-11): the pack build wrote redcon's own
+`.redcon*` cache artifacts into the worktree, which inflated the edited-file set
+for the pack-building arms (P, P120, and the 4 adopting Agc runs) and deflated
+their precision; excluding `.redcon*` and averaging over runs that edited a real
+file gives the numbers below. Push fails on cost and recall, not precision.
+
 | arm | cost/run | recall | precision | adopted |
 |---|---|---|---|---|
-| B baseline | $0.78 | 0.688 | 0.799 | 0/36 |
-| A redcon | $0.82 | 0.618 | 0.822 | 0/36 |
-| Ag guided | $0.91 | 0.617 | 0.814 | 0/36 |
-| Agc config | $0.69 | 0.588 | 0.676 | 4/36 |
-| P (30k) | $1.84 | 0.634 | 0.412 | 0/36 |
-| P120 (120k) | $2.72 | 0.575 | 0.390 | 0/24 |
+| B baseline | $0.78 | 0.688 | 0.872 | 0/36 |
+| A redcon | $0.82 | 0.618 | 0.897 | 0/36 |
+| Ag guided | $0.91 | 0.617 | 0.862 | 0/36 |
+| Agc config | $0.69 | 0.588 | 0.846 | 4/36 |
+| P (30k) | $1.84 | 0.634 | 0.916 | 0/36 |
+| P120 (120k) | $2.72 | 0.575 | 0.829 | 0/24 |
 
 - **Pull fails on delivery.** Adoption is 0/36 unprompted, 0/36 with a prompt
   line, and 4/36 via the CLAUDE.md rule - the only channel with any uptake. (The
@@ -99,11 +105,13 @@ pack, **P120** pre-inject a 120k pack.
   CLAUDE.md is read - a shipped-guidance delivery bug.) The guided arm was the
   single worst: unheard guidance sent the agent searching more, not ranking.
 - **Push fails in the loop, at any coverage.** Pre-injection does not beat
-  baseline at 30k (0.64 coverage; the agent anchors on the incomplete map,
-  precision 0.41) or at 120k (0.90 coverage; recall ties B excluding cap-outs, at
-  3.4x cost, half the precision, and a 33% turn-cap rate). More coverage made the
-  map harder to use, not more valuable. The pre-registered context-window caveat
-  did not trigger: failures were turn-caps, not truncation.
+  baseline at 30k (0.64 coverage; recall 0.634 vs 0.688 at 2.4x cost) or at 120k
+  (0.90 coverage; recall ties B excluding cap-outs, at 3.4x cost and a 33%
+  turn-cap rate). Precision is intact once the `.redcon` build artifact is
+  excluded (P 0.916, P120 0.829 vs B 0.872); push fails on cost and recall, not
+  precision. The incomplete 30k map lowers recall (the agent trusts it), not
+  precision. The pre-registered context-window caveat did not trigger: failures
+  were turn-caps, not truncation.
 
 The injected map's cost scales with turns (the 30k/120k prefix is re-read every
 turn), so any value push might carry is confined to short, non-interactive flows -

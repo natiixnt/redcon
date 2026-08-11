@@ -183,6 +183,40 @@ def test_files_edited_reports_modified_added_and_renamed(tmp_path: Path) -> None
     assert "renamed.py" in edited  # the destination side of the rename
 
 
+def test_files_edited_excludes_redcon_artifacts(tmp_path: Path) -> None:
+    # redcon's own cache artifacts must never count as agent edits.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "user.email=t@e", "-c", "user.name=t", *args],
+            check=True,
+            capture_output=True,
+        )
+
+    git("init", "-q")
+    (repo / "seed.py").write_text("x = 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "init")
+
+    (repo / "real.py").write_text("y = 2\n", encoding="utf-8")  # a genuine agent edit
+    (repo / ".redcon").mkdir()
+    (repo / ".redcon" / "runs.json").write_text("{}", encoding="utf-8")
+    (repo / ".redcon_cache.json").write_text("{}", encoding="utf-8")
+    (repo / ".redcon_cache.json.lock").write_text("", encoding="utf-8")
+
+    edited = agent_arm._files_edited(repo)
+    assert "real.py" in edited
+    assert not any(p.startswith(".redcon") for p in edited)
+
+    # And the cleanup helper removes them from the worktree entirely.
+    agent_arm._clean_redcon_artifacts(repo)
+    assert not (repo / ".redcon").exists()
+    assert not (repo / ".redcon_cache.json").exists()
+    assert not (repo / ".redcon_cache.json.lock").exists()
+
+
 def test_file_hits_is_recall_of_changed_files() -> None:
     assert agent_arm._file_hits(["a.py", "b.py"], ["a.py", "c.py"]) == 0.5
     assert agent_arm._file_hits(["a.py"], ["a.py"]) == 1.0
