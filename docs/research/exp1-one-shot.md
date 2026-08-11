@@ -103,3 +103,93 @@ full set, as in night 2.
 Same as the layer-2 harness: deterministic corpora, results and transcripts
 kept, backups between passes, and hypotheses fixed before measurement. No runs
 until this design is approved and a window is confirmed.
+
+## Results
+
+Run of record: 96 valid cells (24 per condition: 2 arms x 2 corpora x 12 tasks
+x 2 repeats, 24 = 12 tasks x 2 repeats per arm/corpus). All numbers below
+recompute from `benchmarks/agentic/results/oneshot-full/records.jsonl`, committed
+with this PR; the full model responses are archived at
+`~/redcon-exp-backups/exp1-oneshot-transcripts.tar.gz` (64K, 96 files). Total
+list-price cost: $99.72. `empty_result` = 0 across all 96 cells (the tool-less
+`--tools ""` config leaves the model nothing to do but answer), so every parse
+failure is a genuine non-diff response, not a spent-on-a-tool-attempt turn.
+
+### Metric definitions used below
+
+- **file-overlap / line-overlap:** as defined above (file-level = |files(P) and GT|
+  / |GT|; line-level = whitespace-tolerant hunk-line intersection).
+- **Parse failure counts as zero.** A cell whose response is not a parseable
+  unified diff scores file-overlap 0 and line-overlap 0 and is included in the
+  unconditional means. Parse rate is reported separately so the two effects
+  (does it produce a diff at all; is the diff on-target) are never conflated.
+- **input (cacheCreate):** mean `cacheCreationInputTokens` per cell - the injected
+  context lands there on the single call, so it is the honest per-arm input size.
+- **efficiency:** unconditional file-overlap per 100k input tokens (cacheCreate).
+
+### Primary result (unconditional, parse-failure = 0)
+
+| corpus | arm | file-ov | line-ov | parse rate | input (cacheCreate) | eff (fo/100k) | cost |
+|---|---|---|---|---|---|---|---|
+| small | redcon | 0.271 | 0.039 | 12/24 (0.50) | 64k | 0.424 | $0.53 |
+| small | naive | 0.521 | 0.134 | 18/24 (0.75) | 80k | 0.648 | $0.63 |
+| heavy | redcon | 0.122 | 0.020 | 13/24 (0.54) | 197k | 0.062 | $1.51 |
+| heavy | naive | 0.118 | 0.006 | 9/24 (0.38) | 203k | 0.058 | $1.48 |
+| pooled | redcon | 0.196 | 0.029 | 25/48 (0.52) | 130k | 0.151 | $1.02 |
+| pooled | naive | 0.319 | 0.070 | 27/48 (0.56) | 142k | 0.226 | $1.06 |
+
+- **Small repos:** naive wins on raw overlap (0.521 vs 0.271) and on efficiency
+  (0.648 vs 0.424). Whole files give the model exact code to edit; redcon's
+  symbol-compressed selection costs exact-edit fidelity where naive can afford
+  whole files.
+- **Heavy repos:** a tie on raw overlap (redcon 0.122 vs naive 0.118), redcon
+  marginally ahead on efficiency, and redcon's parse rate higher (0.54 vs 0.38).
+
+### Conditional-on-parse overlap (exploratory, not pre-registered)
+
+Overlap among only the cells that produced a valid diff:
+
+| corpus | arm | n parsed | file-ov \| parsed | line-ov \| parsed |
+|---|---|---|---|---|
+| small | redcon | 12/24 | 0.542 | 0.078 |
+| small | naive | 18/24 | 0.694 | 0.178 |
+| heavy | redcon | 13/24 | 0.225 | 0.036 |
+| heavy | naive | 9/24 | 0.315 | 0.016 |
+
+**Decomposition, stated plainly:** redcon's heavy-corpus parity on the
+unconditional metric (0.122 vs 0.118) is carried by its higher parse rate
+(13/24 vs 9/24), **not** by per-parse selection quality - among diffs that
+actually parse, naive is ahead even on heavy (0.315 vs 0.225). Redcon pulls
+even because it commits to a valid diff more often on large repos, not because
+what it selected was edited better.
+
+### On the equal-budget premise
+
+The budget target is equal by construction, but realized input is not identical.
+On the **small corpus the redcon arm injects less than naive (64k vs 80k)**: the
+compressed pack of a small repository saturates below the budget target (there is
+not enough ranked, compressible material to fill it), whereas naive keeps adding
+whole files until the budget is reached. On the heavy corpus the two are close
+(197k vs 203k). This refines the equal-budget claim to: equal target, realized
+input equal on heavy and lower for redcon on small.
+
+Calibration correction, kept on the record: a single-task re-calibration had
+suggested naive *under*-fills on large repos (183k vs 240k on one django task).
+That did not generalize - at scale naive fills to budget on both corpora (small
+80k, heavy 203k). Measuring realized per-arm input rather than asserting equality
+was the right call.
+
+### Compression asymmetry (the tradeoff this experiment measures)
+
+Redcon fits more files, each partial (symbol extraction with line ranges); naive
+fits fewer files, each whole. That asymmetry is inherent to what redcon does and
+it cuts both ways by repo size: partial-but-more helps nothing for exact one-shot
+edits on a small repo where whole-file naive dominates, and only reaches parity
+(via parse rate) on a large repo where naive cannot fit enough whole files.
+
+### Bottom line
+
+Redcon's layer-1 selection quality (97.8% file recall) does **not** convert into
+one-shot edit superiority over cheap keyword retrieval at equal budget. It is
+behind on small repos and at parity-with-a-parse-edge on heavy repos. No claim of
+end-task edit-quality improvement is made or supported here.
