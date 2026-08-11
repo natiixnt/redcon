@@ -82,7 +82,9 @@ def test_is_valid_gates_resume_on_real_completed_runs():
     # A real completed run counts as done.
     assert oneshot_arm._is_valid({"cost_usd": 1.5, "is_error": False}) is True
     # Session-limit, error, and zero-cost rows never count as done (they get re-run).
-    assert oneshot_arm._is_valid({"cost_usd": 0, "is_error": True, "session_limited": True}) is False
+    assert (
+        oneshot_arm._is_valid({"cost_usd": 0, "is_error": True, "session_limited": True}) is False
+    )
     assert oneshot_arm._is_valid({"error": "timeout"}) is False
     assert oneshot_arm._is_valid({"cost_usd": 0, "is_error": False}) is False
     assert oneshot_arm._is_valid({"cost_usd": None}) is False
