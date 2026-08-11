@@ -22,7 +22,12 @@ format change is what redcon's selection needed.
 
 Arm W is the **identical Experiment 1 harness**, changed in exactly one place:
 `redcon_context` is built from **adaptive-mode** pack output instead of the
-compressed default. Everything else is held fixed:
+compressed default. That output comes through the **public pipeline call**
+(`run_pack(..., render_mode="adaptive")` via the same `redcon.core.pipeline`
+entry Experiment 1 uses), **not** a benchmark-local shortcut, so arm W exercises
+exactly the shipped adaptive path. Records include the per-task
+whole-vs-compressed delivery fractions read from the pack artifact's per-entry
+`delivery` field. Everything else is held fixed:
 
 - Same 24 tasks (12 small from the night-1 pilot, 12 heavy from django and sympy),
   pinned in `benchmarks/agentic/tasks-oneshot.jsonl`.
