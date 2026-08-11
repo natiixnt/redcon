@@ -97,6 +97,7 @@ def _serialize_compressed_file(item: CompressedFile) -> dict:
         "chunk_strategy": item.chunk_strategy,
         "chunk_reason": item.chunk_reason,
         "selected_ranges": item.selected_ranges,
+        "delivery": item.delivery,
     }
     if item.symbols:
         data["symbols"] = item.symbols

@@ -627,7 +627,21 @@ def compress_ranked_files(
             )
         )
 
-    if cfg.progressive_packer_enabled:
+    if cfg.render_mode == "adaptive":
+        result = _compress_adaptive(
+            prepared=prepared,
+            max_tokens=max_tokens,
+            cfg=cfg,
+            cache=cache,
+            seen_imports=seen_imports,
+            token_estimator=token_estimator,
+            files_skipped=files_skipped,
+            total_raw=total_raw,
+            duplicate_reads_prevented=duplicate_reads_prevented,
+            ranked_files=ranked_files,
+            summarizer=summarizer,
+        )
+    elif cfg.progressive_packer_enabled:
         result = _compress_progressive(
             prepared=prepared,
             max_tokens=max_tokens,
@@ -697,6 +711,103 @@ def _compress_greedy(
         total_compressed += entry.compressed_tokens
         compressed_files.append(entry)
         files_included.append(ft.path)
+
+    risk = _build_risk_estimate(
+        cfg,
+        files_skipped,
+        ranked_files,
+        total_compressed,
+        total_raw,
+        max_tokens=max_tokens,
+        files_included_count=len(files_included),
+    )
+    cache_snapshot = cache.snapshot()
+    return CompressionResult(
+        compressed_files=compressed_files,
+        files_included=files_included,
+        files_skipped=files_skipped,
+        estimated_input_tokens=total_compressed,
+        estimated_saved_tokens=max(0, total_raw - total_compressed),
+        duplicate_reads_prevented=duplicate_reads_prevented,
+        cache=cache_snapshot,
+        cache_hits=cache_snapshot.hits,
+        quality_risk_estimate=risk,
+        summarizer=summarizer.snapshot(),
+        degraded_files=[],
+        degradation_savings=0,
+    )
+
+
+def _compress_adaptive(
+    prepared: list[FileTiers],
+    max_tokens: int,
+    cfg: CompressionSettings,
+    cache: SummaryCacheBackend,
+    seen_imports: set[str],
+    token_estimator: Callable[[str], int],
+    files_skipped: list[str],
+    total_raw: int,
+    duplicate_reads_prevented: int,
+    ranked_files: list[RankedFile],
+    summarizer: SummarizationService,
+) -> CompressionResult:
+    """Adaptive strategy: include each file whole when it fits the remaining
+    budget, otherwise fall back to its compressed tier, otherwise skip.
+
+    Walks files in ranking order with the same token estimator used everywhere
+    else, so on a repo that fits the budget this degenerates to all-whole with
+    zero compression. Each entry records its delivery form (whole vs compressed)
+    so a pack is auditable. Deterministic: same order, same estimator, no
+    randomness. The whole representation is built directly from the raw text and
+    is not gated by the full-file threshold.
+    """
+    from redcon.compressors.representations import Tier
+
+    compressed_files: list[CompressedFile] = []
+    files_included: list[str] = []
+    total_compressed = 0
+
+    for ft in prepared:
+        whole_tier = Tier(
+            strategy="full",
+            text=f"# Full: {ft.path}\n{ft.full_text}",
+            tokens=token_estimator(ft.full_text),
+            chunk_strategy="full-file",
+            chunk_reason="adaptive: whole file fits remaining budget",
+            selected_ranges=(
+                [
+                    {
+                        "start_line": 1,
+                        "end_line": ft.line_count,
+                        "kind": "full",
+                        "reason": "adaptive whole file",
+                    }
+                ]
+                if ft.line_count > 0
+                else []
+            ),
+        )
+        whole = _finalize_entry(
+            ft.ranked.file, whole_tier, ft.raw_tokens, seen_imports, cache, token_estimator
+        )
+        if total_compressed + whole.compressed_tokens <= max_tokens:
+            whole.delivery = "whole"
+            total_compressed += whole.compressed_tokens
+            compressed_files.append(whole)
+            files_included.append(ft.path)
+            continue
+        # Overflow: fall back to the most-detailed compressed tier if it fits.
+        if ft.tiers:
+            entry = _finalize_entry(
+                ft.ranked.file, ft.tiers[0], ft.raw_tokens, seen_imports, cache, token_estimator
+            )
+            if total_compressed + entry.compressed_tokens <= max_tokens:
+                entry.delivery = "compressed"
+                total_compressed += entry.compressed_tokens
+                compressed_files.append(entry)
+                files_included.append(ft.path)
+                continue
+        files_skipped.append(ft.path)
 
     risk = _build_risk_estimate(
         cfg,

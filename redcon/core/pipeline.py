@@ -387,6 +387,7 @@ def run_pack(
     plugins: ResolvedPlugins | None = None,
     record_history: bool = True,
     compression_profile: str | None = None,
+    render_mode: str | None = None,
     changed_files: list[str] | None = None,
 ) -> RunReport:
     """Run pack command pipeline and return typed run report."""
@@ -411,6 +412,10 @@ def run_pack(
         )
         if profile_note:
             logger.warning(profile_note)
+    # Render mode override (CLI/SDK wins over config). Set after profile
+    # resolution so a resolved profile does not reset it.
+    if render_mode is not None:
+        prepared_cfg.compression.render_mode = str(render_mode).strip().lower()
     telemetry = _build_telemetry_session(
         repo=target_repo,
         config=prepared_cfg,
