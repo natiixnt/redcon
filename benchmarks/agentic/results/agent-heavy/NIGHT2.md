@@ -50,10 +50,14 @@ Zero adoption. Arm A called a redcon tool 0 times across all 36 runs, on repos o
 several million tokens. "Available but unprompted" is pure schema overhead with no
 use, and A comes out slightly behind B.
 
+Precision below is the corrected editing-runs value (see the correction note under
+"All arms, precise"); A and B carry no `.redcon` artifacts, so only the convention
+shifts (0.82 to 0.897, 0.80 to 0.872).
+
 | arm | cost/run | turns | recall | precision | capped | redcon calls |
 |---|---|---|---|---|---|---|
-| A (redcon) | $0.82 | 23.2 | 0.62 | 0.82 | 16/36 | 0 |
-| B (baseline) | $0.78 | 19.8 | 0.69 | 0.80 | 10/36 | 0 |
+| A (redcon) | $0.82 | 23.2 | 0.62 | 0.897 | 16/36 | 0 |
+| B (baseline) | $0.78 | 19.8 | 0.69 | 0.872 | 10/36 | 0 |
 
 The night-1 audit (the agent greps by hand instead of ranking) is confirmed at
 full scale. This makes pass 2 the decisive test: whether one guidance line moves
@@ -178,13 +182,26 @@ in arm P was therefore an incomplete map by construction.
 
 ### All arms, precise (n=36 each)
 
+Correction note (dated 2026-08-11): the precision column below is corrected. The
+original figures were wrong for two reasons. (1) The pack build ran redcon inside
+the worktree, so `.redcon/`, `.redcon_cache.json` and its lock landed in
+`files_edited` for the arms that build or call a pack (P 36/36, P120 24/24, Agc
+4/36 - exactly the adopting runs; B/A/Ag have none), deflating their precision.
+(2) The original column averaged precision over all 36 runs, counting a
+non-editing run as 0; the corrected column excludes `.redcon*` paths and averages
+over runs that edited at least one real file (that is why even the artifact-free
+arms shift, e.g. B 0.799 = 0.872 x 33/36). Corrected precision (editing runs in
+parens): **B 0.872 (33), A 0.897 (33), Ag 0.862 (34), Agc 0.846 (29), P 0.916
+(33), P120 0.829 (23).** The table shows the corrected values; recompute from
+`records.jsonl` with `.redcon*` excluded.
+
 | arm | cost/run | turns | recall | precision | capped | adopted |
 |---|---|---|---|---|---|---|
-| B baseline | $0.78 | 19.8 | 0.688 | 0.799 | 10 | 0/36 |
-| A redcon | $0.82 | 23.2 | 0.618 | 0.822 | 16 | 0/36 |
-| Ag guided | $0.91 | 25.7 | 0.617 | 0.814 | 19 | 0/36 |
-| Agc config | $0.69 | 20.8 | 0.588 | 0.676 | 12 | 4/36 |
-| P preinject | $1.84 | 22.2 | 0.634 | 0.412 | 15 | 0/36 |
+| B baseline | $0.78 | 19.8 | 0.688 | 0.872 | 10 | 0/36 |
+| A redcon | $0.82 | 23.2 | 0.618 | 0.897 | 16 | 0/36 |
+| Ag guided | $0.91 | 25.7 | 0.617 | 0.862 | 19 | 0/36 |
+| Agc config | $0.69 | 20.8 | 0.588 | 0.846 | 12 | 4/36 |
+| P preinject | $1.84 | 22.2 | 0.634 | 0.916 | 15 | 0/36 |
 
 Per-stratum recall (precise, n=12/cell):
 
@@ -246,11 +263,13 @@ built its own map** - context has value at the start of a run, not mid-run.
 
 ### P: pack value once adoption is removed
 
-P did not beat B: cost 2.4x, recall 0.634 vs 0.688, and **precision collapsed to
-0.412** (vs 0.799). Mechanism, from the transcripts: the agent anchors on the
-injected map and edits files it lists that are not targets - e.g. django/36be97b9
-rep0 edited 8 files, 5 of them non-targets, one taken straight from the pack
-(`tests/staticfiles_tests/.../ignored.css`). Averaged 3.3 superfluous edits/run.
+P did not beat B: cost 2.4x and recall 0.634 vs 0.688. Precision, corrected for
+the `.redcon` artifact, is **0.916** (not the 0.412 first reported) - **intact,
+slightly above B's 0.872.** The earlier "3.3 superfluous edits/run" and the
+"anchors on the map and edits non-targets" mechanism were an artifact of the pack
+build writing `.redcon/` and `.redcon_cache.json*` into the worktree, counted as
+edits; with those excluded the agent edits few non-target real files. P's loss is
+cost and recall, not precision.
 
 P's recall tracks the pack's coverage almost exactly (0.634 vs pack-file-hits
 0.627): the agent trusts the map, so an incomplete map caps recall below what free
@@ -264,10 +283,11 @@ tests it at scale (24 runs at ~0.9 coverage) and **refutes it**.
 ### P120: a near-complete pack still does not pay
 
 P120 pre-injects a 120k pack (pack-file-hits 0.896, near-complete). It did not beat
-baseline: recall 0.575 vs B 0.688, precision 0.39, cost **$2.72 (3.5x)**, and a
-**33% turn-cap rate** (8/24 hit the 30-turn limit vs 10/36 for B). Even excluding
-the capped runs, the completed P120 runs only *tie* baseline on recall (0.672 vs
-0.688) at 3.4x cost and half the precision (0.45 vs 0.80).
+baseline: recall 0.575 vs B 0.688, cost **$2.72 (3.5x)**, and a **33% turn-cap
+rate** (8/24 hit the 30-turn limit vs 10/36 for B). Precision, corrected for the
+`.redcon` artifact, is **0.829** (not the 0.39 first reported) - intact, near B's
+0.872, not "half". Even excluding the capped runs, the completed P120 runs only
+*tie* baseline on recall (0.672 vs 0.688) at 3.4x cost.
 
 So more coverage did not help - it hurt: the larger map inflates cost (re-read
 every turn) and makes the agent wade through more files, capping out and spreading
@@ -283,8 +303,9 @@ The pull evidence still holds that context helps most early not late: Ag spent i
 extra turns searching, and Agc's `redcon_rank` helped only when it came in the
 first few turns. But the stronger claim - that pushing the map up front pays -
 does **not** survive P120. A targeted early lookup can help; dumping the whole map
-in front of a multi-turn agent does not, at 30k (incomplete, precision harm) or at
-120k (complete, but the agent caps out wading through it). The value of "at start"
+in front of a multi-turn agent does not, at 30k (incomplete, recall capped by the
+map) or at 120k (complete, but the agent caps out wading through it). The value of
+"at start"
 is a small, targeted result, not a large map re-read every turn.
 
 ## Bottom line
@@ -295,16 +316,18 @@ On large repositories, in headless autonomous mode with sonnet, redcon delivered
 1. **Pull fails on delivery.** The agent will not reach for redcon on its own:
    0/36 unprompted, 0/36 with a prompt line, 4/36 via the CLAUDE.md rule.
 2. **Push fails in the loop, regardless of coverage.** Pre-injecting the map does
-   not beat baseline at 30k (0.64 coverage, precision 0.41) or at 120k (0.90
-   coverage, recall ties B at 3.4x cost, half the precision, 33% cap-outs). More
-   coverage did not turn push positive; it made the map harder to use.
+   not beat baseline at 30k (0.64 coverage, recall 0.634 vs 0.688 at 2.4x cost) or
+   at 120k (0.90 coverage, recall ties B at 3.4x cost, 33% cap-outs). Precision is
+   intact once the `.redcon` build artifact is excluded (P 0.916, P120 0.829 vs B
+   0.872 - see the correction note); push fails on cost and recall, not precision.
+   More coverage did not turn push positive; it made the map harder to use.
 
 What is *not* refuted: the pack's file-finding itself is good (the sweep reaches
 0.90 recall at 120k - a budget, not a ranking, limit), and the layer-1 results
 (97.8% file recall, contexts 63-93% smaller) stand for small and medium
 repositories. The gap is between a good pack and a better end-task outcome once an
 autonomous multi-turn agent is in the loop: the agent does as well or better
-exploring freely, and a handed-over map hurts precision and inflates cost. The one
+exploring freely, and a handed-over map lowers recall and inflates cost. The one
 delivery mode these runs do **not** cover is single- or few-turn, non-interactive
 flows (CI checks, review bots, one-shot API calls), where the map is not re-read
 many times; that remains the only open place push might pay, and it is the honest

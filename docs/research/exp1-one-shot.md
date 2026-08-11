@@ -111,9 +111,11 @@ x 2 repeats, 24 = 12 tasks x 2 repeats per arm/corpus). All numbers below
 recompute from `benchmarks/agentic/results/oneshot-full/records.jsonl`, committed
 with this PR; the full model responses are archived at
 `~/redcon-exp-backups/exp1-oneshot-transcripts.tar.gz` (64K, 96 files). Total
-list-price cost: $99.72. `empty_result` = 0 across all 96 cells (the tool-less
-`--tools ""` config leaves the model nothing to do but answer), so every parse
-failure is a genuine non-diff response, not a spent-on-a-tool-attempt turn.
+list-price cost: $99.72. `empty_result` = 1 of 96 cells (one small-corpus redcon
+cell, `56c7b8d`, returned an empty response; it is a parse failure scored zero per
+the convention below, so metrics are unaffected). The tool-less `--tools ""`
+config leaves the model nothing to do but answer, so parse failures are genuine
+non-diff responses, not spent-on-a-tool-attempt turns.
 
 ### Metric definitions used below
 

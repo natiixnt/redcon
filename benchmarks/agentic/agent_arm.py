@@ -46,6 +46,7 @@ import argparse
 import contextlib
 import json
 import os
+import shutil
 import subprocess
 import time
 from collections.abc import Iterator
@@ -395,8 +396,30 @@ def _redcon_calls(counts: dict[str, int]) -> int:
     return sum(v for name, v in counts.items() if str(name).startswith("mcp__redcon__"))
 
 
+def _clean_redcon_artifacts(worktree: Path) -> None:
+    """Delete redcon's own cache artifacts a pack build wrote into the worktree.
+
+    When a push arm builds a pack inside the worktree, redcon writes ``.redcon/``
+    and ``.redcon_cache.json*``. Removing them before the agent starts keeps the
+    measured worktree clean so they cannot appear as the agent's edits.
+    """
+    for name in (".redcon", ".redcon_cache.json", ".redcon_cache.json.lock"):
+        target = worktree / name
+        with contextlib.suppress(FileNotFoundError):
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            else:
+                target.unlink()
+
+
 def _files_edited(worktree: Path) -> list[str]:
-    """Repo-relative paths the agent created or modified in the worktree."""
+    """Repo-relative paths the agent created or modified in the worktree.
+
+    redcon's own cache artifacts (``.redcon/``, ``.redcon_cache.json`` and its
+    lock) are excluded by definition: when an arm builds or the agent calls a
+    pack, redcon writes them, so they are not agent edits and must never count
+    toward recall or precision.
+    """
     out = _git(worktree, "status", "--porcelain")
     edited = []
     for line in out.splitlines():
@@ -405,6 +428,8 @@ def _files_edited(worktree: Path) -> list[str]:
         path = line[3:].strip()
         if " -> " in path:  # rename: take the destination
             path = path.split(" -> ", 1)[1]
+        if path.startswith(".redcon"):
+            continue
         edited.append(path)
     return sorted(edited)
 
@@ -495,6 +520,10 @@ def run_one(
         base["ranking_file_hits"] = (
             round(len(changed & set(ranked)) / len(changed), 6) if changed else 0.0
         )
+    # A pack built above writes redcon artifacts into the worktree; remove them so
+    # they cannot land in the agent's git-status edits (belt-and-suspenders with the
+    # .redcon exclusion in _files_edited).
+    _clean_redcon_artifacts(worktree)
     started = time.monotonic()
     try:
         proc = subprocess.run(
