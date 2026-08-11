@@ -166,13 +166,16 @@ The two directions registered above were run and both came back negative.
    superiority over cheap keyword retrieval. Full data and tables:
    `docs/research/exp1-one-shot.md`.
 2. **P-lite (Experiment 2, inject the ranking not the map).** Resolved:
-   **negative.** Injecting only the top-10 ranking list (about 145 tokens) then
-   running the agent normally (24 valid runs vs the reused night-2 baseline B)
-   held cost (0.66 vs 0.78) but did not beat baseline on recall (0.556 vs 0.688)
-   and collapsed precision (0.465 vs 0.881). The injected list covered only 27% of
-   the ground-truth files, anchoring edits on a mostly-wrong set - the same
-   anchoring the night-2 full-map push arms showed. Push delivery is closed for
-   interactive use at any weight (full map, 120k, top-10 list). Full data:
+   **negative on end-task value.** Injecting only the top-10 ranking list (about
+   145 tokens) then running the agent normally (24 valid runs vs the reused
+   night-2 baseline B) held cost (0.66 vs 0.78) but did not beat baseline on recall
+   (0.556 vs 0.688). Precision is **intact** (0.943 vs 0.872 with redcon's own
+   `.redcon` build artifact excluded - see the correction in exp2-p-lite.md), so
+   the pre-registered no-precision-collapse hypothesis holds; the loss is on recall
+   and cost. The injected list covered only 27% of the ground-truth files, so it
+   **narrowed exploration** (17.8 vs 19.8 turns) and lowered recall rather than
+   anchoring edits onto wrong files. Push delivery is closed for interactive use at
+   any weight (full map, 120k, top-10 list), on cost and recall grounds. Full data:
    `docs/research/exp2-p-lite.md`.
 
 ## Open questions (registered)
