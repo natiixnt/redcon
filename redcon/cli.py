@@ -749,6 +749,7 @@ def cmd_pack(args: argparse.Namespace) -> int:
         top_files=args.top_files,
         delta_from=args.delta,
         compression_profile=getattr(args, "compression_profile", None),
+        render_mode=getattr(args, "render_mode", None),
         changed_files=getattr(args, "changed", None),
     )
 
@@ -3177,6 +3178,16 @@ def _register_packing_commands(sub: argparse._SubParsersAction) -> None:
         help=(
             "Compression profile: 'max' packs tighter representations. "
             "Overrides [compression] profile."
+        ),
+    )
+    pack.add_argument(
+        "--render-mode",
+        choices=["compressed", "adaptive"],
+        default=None,
+        help=(
+            "Per-file delivery form. 'compressed' (default) always compresses to "
+            "fit the budget; 'adaptive' includes a file whole when it fits and "
+            "compresses only on overflow. Overrides [render] mode."
         ),
     )
     pack.add_argument(

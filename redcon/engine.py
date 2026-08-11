@@ -322,6 +322,7 @@ class RedconEngine:
         config_path: str | Path | None = None,
         timeout: int = 120,
         compression_profile: str | None = None,
+        render_mode: str | None = None,
         changed_files: list[str] | None = None,
     ) -> dict[str, Any]:
         """Build compressed context under token and file budgets.
@@ -363,6 +364,7 @@ class RedconEngine:
                     telemetry_sink=self._telemetry_sink,
                     workspace=workspace_definition,
                     compression_profile=compression_profile,
+                    render_mode=render_mode,
                     changed_files=changed_files,
                 )
                 result = as_json_dict(report)
@@ -377,6 +379,7 @@ class RedconEngine:
                     config=cfg,
                     telemetry_sink=self._telemetry_sink,
                     compression_profile=compression_profile,
+                    render_mode=render_mode,
                     changed_files=changed_files,
                 )
                 result = as_json_dict(report)

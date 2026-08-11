@@ -70,6 +70,9 @@ class CompressedFile:
     cache_status: str = ""
     relative_path: str = ""
     repo_label: str = ""
+    # How this file was delivered into the pack: "compressed" (the default packer)
+    # or "whole" (adaptive rendering included the file verbatim because it fit).
+    delivery: str = "compressed"
 
 
 @dataclass(slots=True)

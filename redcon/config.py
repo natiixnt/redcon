@@ -163,6 +163,11 @@ class CompressionSettings:
     max_degradation_rounds: int = 1
     risk_skip_weight: float = 0.55
     risk_compression_weight: float = 0.45
+    # Delivery form for each ranked file. "compressed" (default, unchanged) always
+    # compresses to fit the budget; "adaptive" includes a file whole when it fits
+    # the remaining budget and only compresses on overflow. Set via [render] mode
+    # or the --render-mode CLI flag. See redcon/compressors/context_compressor.py.
+    render_mode: str = "compressed"
 
 
 @dataclass(slots=True)
@@ -371,6 +376,11 @@ class RedconConfig:
             warnings.append(
                 f"[compression].full_file_threshold_tokens must be >= 0, "
                 f"got {self.compression.full_file_threshold_tokens}"
+            )
+        if self.compression.render_mode not in ("compressed", "adaptive"):
+            warnings.append(
+                f"[render].mode must be 'compressed' or 'adaptive', "
+                f"got {self.compression.render_mode!r}"
             )
 
         # Role multipliers
@@ -598,6 +608,8 @@ def _apply_compression_overrides(settings: CompressionSettings, data: Mapping[st
         settings.adaptive_line_budget_max_factor = float(data["adaptive_line_budget_max_factor"])
     if "progressive_packer_enabled" in data:
         settings.progressive_packer_enabled = bool(data["progressive_packer_enabled"])
+    if "render_mode" in data:
+        settings.render_mode = str(data["render_mode"]).strip().lower()
     if "max_degradation_rounds" in data:
         settings.max_degradation_rounds = int(data["max_degradation_rounds"])
     if "risk_skip_weight" in data:
@@ -738,6 +750,7 @@ _KNOWN_TOP_LEVEL_KEYS = frozenset(
         "pack",
         "output",
         "model_profile",
+        "render",
         "repos",
         "name",
     }
@@ -915,6 +928,12 @@ def _apply_overrides(config: RedconConfig, data: Mapping[str, Any]) -> RedconCon
             },
         )
         _apply_compression_overrides(config.compression, compression_data)
+
+    # [render] mode is a friendly surface for the packer's per-file delivery form;
+    # it maps onto compression.render_mode, which the compressor already receives.
+    render_data = data.get("render")
+    if isinstance(render_data, Mapping) and "mode" in render_data:
+        config.compression.render_mode = str(render_data["mode"]).strip().lower()
 
     if isinstance(token_data, Mapping) and not (
         isinstance(plugin_data, Mapping) and "token_estimator" in plugin_data
