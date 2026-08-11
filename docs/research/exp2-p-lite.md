@@ -71,3 +71,41 @@ selection quality can and cannot be turned into end-task value.
 order of the night-2 baseline arm - low tens of dollars list-price. A precise
 estimate and a 2-run calibration accompany the run request. No runs until approved
 and a window is confirmed.
+
+## Results
+
+P-lite full run: 24 valid runs (12 heavy tasks x 2 precise repeats), $15.93
+list-price, compared against the reused night-2 baseline B (arm `baseline`,
+precise). All numbers recompute from
+`benchmarks/agentic/results/plite-full/records.jsonl`, committed with this PR;
+full stream-json transcripts are archived at
+`~/redcon-exp-backups/exp2-plite-transcripts.tar.gz` (1.3M).
+
+| metric | baseline B | P-lite | pre-registered hypothesis |
+|---|---|---|---|
+| cost | $0.776 | $0.664 | H1 (cost ~= baseline): **held** (slightly cheaper) |
+| turns | 19.8 | 17.8 | - |
+| recall (file_hits) | 0.688 | 0.556 | H2 (recall > baseline): **refuted** |
+| precision (post-hoc) | 0.881 | 0.465 | H3 (no precision collapse): **refuted** |
+| cap-out | 11/36 (31%) | 8/24 (33%) | - |
+| ranking coverage of GT | - | 0.270 | - |
+
+**Verdict: a clean negative on 2 of 3 pre-registered hypotheses.** P-lite matches
+baseline on cost but does not beat it on recall and collapses precision.
+
+**Mechanism.** The injected top-10 ranking covered only 27% of the ground-truth
+files (`ranking_file_hits` = 0.270), so it pointed the agent at a mostly-wrong set
+and anchored edits there - an anchoring effect consistent with the night-2 full-map
+push arms (P at 30k and P120 at 120k), which also collapsed precision. The lightest
+possible in-loop delivery of redcon's ranking does not pay; push delivery is closed
+for interactive use at any weight.
+
+**Metric definitions.** recall = `file_hits` (fraction of ground-truth files the
+agent edited); precision = |files_edited and changed_files| / |files_edited|,
+computed post-hoc over runs that edited at least one file; cap-out = runs whose
+`terminal_reason` is not `completed`.
+
+**Caveats.** P-lite n = 24 vs baseline n = 36 (2 vs 3 repeats). Precision is
+averaged over runs that edited at least one file: 16 of 24 P-lite runs, 25 of 36
+baseline runs. Baseline B is reused from night 2 with no version drift (both under
+CLI 2.1.220, model claude-sonnet-5), so no fresh baseline controls were required.
