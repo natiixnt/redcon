@@ -26,7 +26,10 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent.parent
 
-ARMS = ("redcon", "naive")
+# "adaptive" is Experiment 3 arm W: the redcon pack rendered adaptive (whole files
+# when they fit the budget, compressed on overflow), through the same public
+# run_pack path as "redcon".
+ARMS = ("redcon", "naive", "adaptive")
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 600
@@ -100,14 +103,19 @@ def naive_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[st
     return "\n".join(parts), files
 
 
-def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[str]]:
-    """The redcon pack's *content* for the task, plus the files it included.
+def redcon_context(
+    worktree: Path, task: dict, budget: int, render_mode: str = "compressed"
+) -> tuple[str, list[str], dict]:
+    """The redcon pack's *content* for the task, the files it included, and the
+    per-delivery-form breakdown.
 
-    This is the compressed, symbol-extracted code redcon actually delivers to an
-    agent (the ``text`` of each ``compressed_context`` entry, already path-headed),
-    not ``render_pack_markdown`` - that renders the human-readable pack *report*
-    (budget stats, token-estimator notes), which carries no editable code and would
-    leave this arm with nothing to diff from.
+    This is the code redcon actually delivers to an agent (the ``text`` of each
+    ``compressed_context`` entry, already path-headed), not ``render_pack_markdown``
+    - that renders the human-readable pack *report* (budget stats, token-estimator
+    notes), which carries no editable code and would leave this arm with nothing to
+    diff from. ``render_mode`` selects the shipped delivery form: ``compressed``
+    (the default packer) or ``adaptive`` (whole files when they fit, else
+    compressed), passed straight through the public ``run_pack`` call.
     """
     from redcon.config import default_config  # noqa: PLC0415
     from redcon.core import pipeline  # noqa: PLC0415
@@ -119,6 +127,7 @@ def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[s
             worktree,
             max_tokens=budget,
             config=default_config(),
+            render_mode=render_mode,
             record_history=False,
         )
     )
@@ -128,7 +137,14 @@ def redcon_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[s
     entries = [e for e in (data.get("compressed_context") or []) if e.get("path") and e.get("text")]
     files = [e["path"] for e in entries]
     context = "\n\n".join(e["text"] for e in entries)
-    return context, files
+    whole = sum(1 for e in entries if e.get("delivery") == "whole")
+    total = len(entries)
+    delivery = {
+        "whole": whole,
+        "compressed": total - whole,
+        "whole_frac": round(whole / total, 6) if total else 0.0,
+    }
+    return context, files, delivery
 
 
 def _repo_budget(worktree: Path) -> int:
@@ -249,11 +265,14 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
     _git(repo_path, "worktree", "add", "--quiet", "--detach", str(worktree), task["parent_sha"])
     try:
         budget = _repo_budget(worktree)
-        context, ctx_files = (
-            redcon_context(worktree, task, budget)
-            if arm == "redcon"
-            else naive_context(worktree, task, budget)
-        )
+        delivery = None
+        if arm == "naive":
+            context, ctx_files = naive_context(worktree, task, budget)
+        else:
+            render_mode = "adaptive" if arm == "adaptive" else "compressed"
+            context, ctx_files, delivery = redcon_context(
+                worktree, task, budget, render_mode=render_mode
+            )
         command = _command(_prompt(context, task))
         started = time.monotonic()
         proc = subprocess.run(command, cwd=str(worktree), stdin=subprocess.DEVNULL,
@@ -275,6 +294,9 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
             **base, **overlap,
             "budget": budget,
             "context_files": ctx_files,
+            # Whole-vs-compressed delivery breakdown from the pack artifact (adaptive
+            # arm W mechanism metric); None for naive.
+            "delivery": delivery,
             "changed_files": list(task["changed_files"]),
             "cost_usd": data.get("total_cost_usd"),
             "input_tokens": usage.get("inputTokens"),
