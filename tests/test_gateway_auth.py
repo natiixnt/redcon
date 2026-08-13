@@ -140,14 +140,28 @@ class TestGatewayAuthLive:
         )
         assert status == 401
 
-    def test_trailing_space_token_is_401(self):
+    def test_extra_char_token_is_401(self):
         # Locks in exact (constant-time) comparison: a one-char near-miss fails.
+        # The extra character is not whitespace, so it is never normalized away
+        # (see test_trailing_whitespace_token_is_normalized for the space case).
+        status, _ = _post(
+            f"{self._base}/prepare-context",
+            {"task": "x"},
+            {"Authorization": f"Bearer {_API_KEY}x"},
+        )
+        assert status == 401
+
+    def test_trailing_whitespace_token_is_normalized(self):
+        # A trailing space is HTTP optional whitespace. The app strips it from the
+        # bearer token before comparing, so `Bearer <key> ` authenticates as
+        # `Bearer <key>`. This normalization is shared by both server paths so they
+        # agree; see test_stdlib_and_fastapi_agree_on_whitespace_token.
         status, _ = _post(
             f"{self._base}/prepare-context",
             {"task": "x"},
             {"Authorization": f"Bearer {_API_KEY} "},
         )
-        assert status == 401
+        assert status == 200
 
     def test_correct_bearer_token_is_200(self):
         status, body = _post(
@@ -176,6 +190,37 @@ class TestGatewayAuthDisabledLive:
             status, body = _post(f"{base}/prepare-context", {"task": "x"})
             assert status == 200
             assert "optimized_context" in body
+
+
+class TestGatewayAuthCrossImplementation:
+    """The stdlib and FastAPI paths must authenticate the same token identically.
+
+    They previously disagreed on a trailing-whitespace token (FastAPI stripped the
+    OWS and accepted, the stdlib handler did not and rejected); the shared token
+    normalization fixed that. These force the stdlib path even when FastAPI is
+    installed, so the agreement is pinned in any environment.
+    """
+
+    def test_stdlib_and_fastapi_agree_on_whitespace_token(self, monkeypatch):
+        from redcon.gateway import server as server_mod
+
+        monkeypatch.setattr(server_mod, "_try_import_fastapi", lambda: (None, None))
+        config = GatewayConfig(
+            host="127.0.0.1", port=_free_port(), api_key=_API_KEY, log_requests=False
+        )
+        with _running_gateway(config) as base:
+            normalized, _ = _post(
+                f"{base}/prepare-context",
+                {"task": "x"},
+                {"Authorization": f"Bearer {_API_KEY} "},
+            )
+            near_miss, _ = _post(
+                f"{base}/prepare-context",
+                {"task": "x"},
+                {"Authorization": f"Bearer {_API_KEY}x"},
+            )
+        assert normalized == 200  # stdlib path now normalizes the trailing OWS too
+        assert near_miss == 401  # a real near-miss is still rejected
 
 
 # ---------------------------------------------------------------------------
