@@ -1,7 +1,8 @@
 # Experiment 6 Phase A: tool-result compression ceiling (offline)
 
-Status: **offline analysis complete. No agent spend, no product changes. Phase B
-is not designed until this report is reviewed.**
+Status: **closed at Phase A. Offline analysis only, no agent spend, no product
+change. The safe savings ceiling does not clear the pre-registered bar, so there
+is no Phase B.**
 
 ## Idea under test
 
@@ -17,8 +18,9 @@ savings ceiling and the safety floor from existing data, with no new runs.
 ## Method
 
 Source: the 228 night-2 stream-json transcripts (`results/agent-heavy`,
-backed-up tarball), all six arms. For each run we pair every `tool_use` with its
-`tool_result` by id, classify the call (read / grep / pytest / git_* / listing /
+backed-up tarball), all six arms, model claude-sonnet-5. For each run we pair
+every `tool_use` with its `tool_result` by id, record the assistant turn that
+made each call, classify the call (read / grep / pytest / git_* / listing /
 bash_other / other), and re-render each result offline through redcon's existing
 machinery where it applies:
 
@@ -31,22 +33,33 @@ machinery where it applies:
   compact and small ones stay verbose. The hint is stated for reproducibility.
 
 Tokens are counted with the standard `estimate_tokens` estimator, same call for
-original and compressed. Safety is measured directly against later edits: for
-every file the agent eventually edited, we locate the edited region in the body
-of its most recent prior read and check whether that read's compressed rendering
-still contains the eventually-edited lines (content match, whitespace-tolerant),
-split by whether the read would have been delivered whole or compressed.
+original and compressed. Runs are keyed `(sha, phrasing, repeat)`; the baseline
+arm has 48 runs (12 tasks x {medium-r0, precise-r0, precise-r1, precise-r2}), of
+which 36 are precise. The **precise slice is primary**: the offline read
+compression is keyed on the precise-phrasing keywords, so on precise runs the
+keywords match the run and the estimate is internally consistent.
+
+Costs use Sonnet 5 list pricing (base input $3, output $15 per MTok) with the 1h
+ephemeral cache the runs actually used: a cache write is 2x base input ($6) and a
+cache read is 0.1x ($0.30). A tool-result token that enters context at turn t is
+priced as one cache write plus a cache read on each later turn it survives.
+
+Safety is measured directly against later edits: for every file the agent
+eventually edited, we locate the edited region in the body of its most recent
+prior read and check whether that read's compressed rendering still contains the
+eventually-edited lines (content match, whitespace-tolerant), split by whether
+the read would have been delivered whole or compressed.
 
 The analysis script is `benchmarks/agentic/exp6_toolresult_analysis.py`; its
 records are `benchmarks/agentic/results/exp6-phaseA/` (`toolresult_rows.jsonl`,
-`edit_coverage.jsonl`, `report.txt`). All 228 transcripts parse; 202 emitted at
-least one tool-result and contribute to the tables.
+`edit_coverage.jsonl`, `runs.jsonl`, `report.txt`). All 228 transcripts parse;
+202 emitted at least one tool-result.
 
 ## Results
 
 ### Savings by tool type (baseline arm, primary)
 
-Aggregate reduction over the baseline arm's 5369-token-weighted results:
+Aggregate reduction over the baseline arm's re-rendered results:
 
 | kind        |    n | orig_tok | comp_tok | pooled save | median-per-result |
 |-------------|-----:|---------:|---------:|------------:|------------------:|
@@ -59,17 +72,48 @@ Aggregate reduction over the baseline arm's 5369-token-weighted results:
 | listing     |   23 |    4,328 |    3,285 |       24.1% |              0.0% |
 
 The pooled savings sit on a few large results; the median result in every read
-and grep bucket saves nothing, because most reads are already small (whole) and
-most greps are short. git_diff is the one kind that compresses reliably per
-result (median 83.6%), but its total volume is tiny. git_show has no compressor
-and passes through untouched, yet is the second-largest read-like bucket.
+and grep bucket saves nothing. git_diff is the one kind that compresses reliably
+per result (median 83.6%), but its total volume is tiny. git_show has no
+compressor and passes through untouched, yet is the second-largest read-like
+bucket.
 
-### Per-run reduction
+### Per-run gross reduction (ceiling, includes unsafe read compression)
 
-Summing per baseline run, tool-result token reduction is **median 18.3%**
-(p25 4.5%, p75 29.2%) of the run's own tool-result tokens. This is the ceiling on
-what a lossless-looking harness pass could remove from the results channel, and
-it is a share of tool-results, not of total input.
+Keyed `(sha, phrasing, repeat)`, reduction of the run's own tool-result tokens:
+
+| slice            | median | p25  | p75   |
+|------------------|-------:|-----:|------:|
+| precise (36, primary) | 17.3% | 4.5% | 25.2% |
+| all baseline (48)     | 15.8% | 4.2% | 29.2% |
+
+This is a **ceiling that includes read compression**, which the safety result
+below rules out. It is the most that a lossless-looking pass could remove from
+the results channel, not what is safely realizable.
+
+### Snapshot-delta ceiling (safe re-read channel)
+
+The re-read volume, the token count of second-and-later reads of the same file
+per run, is what a snapshot-delta harness could remove without touching any first
+read: **median 420 tokens/run** (p75 964), a **median 3.8%** of the run's
+tool-result tokens on the precise slice. 65% of baseline runs re-read some file
+(mean max reads of one file 1.98). This is bounded but genuinely safe.
+
+### Cost translation (precise slice, Sonnet 5 list pricing, 1h cache)
+
+The safe channel is command-output compression plus snapshot-delta on re-reads,
+each priced as a cache write plus later-turn cache reads:
+
+| quantity | value |
+|----------|------:|
+| mean run cost | $1.2226 |
+| mean safe savings | $0.0230 |
+| - command output | $0.0121 |
+| - snapshot-delta | $0.0109 |
+| **safe savings as share of run cost** | **1.88%** |
+
+Read-side re-reads and command output are both cheap in cache terms (a read
+token costs one write plus 0.1x reads for its remaining turns), so even the full
+re-read volume plus every schema-aware command saving lands under 2% of the run.
 
 ### Safety: edit-line coverage
 
@@ -81,52 +125,32 @@ Over 534 edited-file reads:
 | compressed    | 206 |  12.6% |
 | overall       | 534 |  66.3% |
 
-This is the decisive finding. A whole read trivially keeps every line. A
-symbol-compressed read preserves the lines the agent later edits only **12.6%**
-of the time: compressing a large read destroys the eventually-edited content in
-roughly seven of every eight cases. Read compression is the largest savings
-bucket and simultaneously the one that is unsafe to touch.
+A whole read trivially keeps every line. A symbol-compressed read preserves the
+lines the agent later edits only **12.6%** of the time: compressing a large read
+destroys the eventually-edited content in roughly seven of every eight cases.
+Read compression is the largest savings bucket and simultaneously the one that is
+unsafe to touch.
 
-### Re-read exposure
+### Grep-safety caveat
 
-146 of 203 runs (71.9%) read the same file more than once; the mean
-maximum-reads-of-one-file is 2.27. Re-reads are a savings channel that never
-touches first-read fidelity: on a repeat read the harness can return only the
-delta from the prior read. It is bounded but safe, and it does not appear in the
-per-run 18.3% above (that figure re-renders each read independently).
+The edit-line safety test covers reads, because reads have a measurable
+downstream signal (the later edit). Grep and search output have no comparable
+offline ground truth: condensing a grep result can drop a path or line the agent
+would have navigated to next, and that navigation harm is **not measured here**.
+The command-output savings above should be read as an upper bound on a channel
+whose safety is itself unestablished, not as a free saving.
 
-## Reading
+## Decision: close at Phase A
 
-The results channel is real but modest, and its savings and its risk are stacked
-on the same bucket. The large, safe-looking pooled numbers on reads are an
-artifact of a few big files; compressing those big reads is exactly what fails
-the safety test at 12.6%. The genuinely safe savings are:
+The pre-registered gate for continuing was that the safe channels, snapshot-delta
+plus command output, reach roughly 5% of run cost. They reach **1.88%**. The
+result channel's volume sits almost entirely in reads, and read compression fails
+the safety test at 12.6% edit-line survival, so the volume that is large is
+exactly the volume that is unsafe to compress. What remains safe is small and, in
+the grep case, of unestablished safety.
 
-- schema-aware command output (grep, git_diff, git_log, listing): reliable where
-  it fires, small in aggregate;
-- snapshot-delta on re-reads: 72% of runs are exposed, first-read fidelity
-  untouched.
-
-Symbol-compressing reads is off the table on this evidence.
-
-## Recommended Phase B pre-registration gates
-
-Two gates, both computed from the offline data above, for the reviewer to accept
-or move before any Phase B run:
-
-1. **Savings gate.** A tool kind is a Phase B candidate only if its offline
-   median-per-result reduction is at or above **25%**. This admits git_diff
-   (83.6%) and is a near-miss for git_log (9.5% median despite 20.7% pooled);
-   it excludes reads and grep, whose median result saves nothing. Read the gate
-   on the median, not the pooled share, so a handful of large results cannot
-   carry a kind in.
-2. **Edit-line-coverage gate.** Any variant that compresses a read must preserve
-   at least **95%** of eventually-edited lines offline. Symbol compression scores
-   12.6% and fails decisively, so Phase B must not symbol-compress reads. Reads
-   stay whole; the only read-side savings pursued is snapshot-delta on re-reads,
-   which is lossless on first read by construction and so passes this gate
-   trivially.
-
-Net: Phase B, if it runs, is scoped to schema-aware command-output compression
-plus re-read snapshot-delta, not read compression. No Phase B design work until
-this report is reviewed.
+Exp 6 closes at Phase A as a **negative-ceiling result**. There is no Phase B.
+The third delivery channel (compressing tool results the agent already pulled) is
+recorded as closed in `docs/research/agentic-eval.md`: cost-free in principle,
+but the realizable, safe saving is under 2% of run cost on this evidence, because
+the compressible volume lives where compression destroys edit targets.

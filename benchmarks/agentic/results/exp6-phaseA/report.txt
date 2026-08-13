@@ -1,6 +1,6 @@
 
 === Exp 6 Phase A: tool-result compression ceiling (night-2, offline) ===
-tool-results analysed: 5369 across 202 runs
+tool-results analysed: 5369 across 226 runs
 
 [baseline arm (primary)] savings by tool type
 kind             n   orig_tok   comp_tok   save%    med%
@@ -54,10 +54,20 @@ git_--no-pager     1         37         37    0.0%    0.0%
 git_cat-file     1          4          4    0.0%    0.0%
 TOTAL         5369    2297682    1579812   31.2%
 
-[baseline] per-run tool-result token reduction: median 18.3%, p25 4.5%, p75 29.2%
+[baseline] per-run gross tool-result reduction (ceiling, includes unsafe read compression)
+  all (48 runs): median 15.8%, p25 4.2%, p75 29.2%
+  precise (36 runs): median 17.3%, p25 4.5%, p75 25.2%
+
+[baseline, precise] snapshot-delta ceiling (2nd+ reads of the same file)
+  re-read tokens/run: median 420, p75 964; as share of run tool-result tokens: median 3.8%
+
+[baseline, precise] cost translation (Sonnet 5 list pricing, 1h cache)
+  mean run cost: $1.2226
+  mean safe savings: $0.0230 (command output $0.0121 + snapshot-delta $0.0109)
+  safe savings as share of run cost: 1.88%
 
 [safety] edit-line coverage over 534 edited-file reads: 66.3%
   when read delivered whole (328): 100.0%
   when read delivered compressed (206): 12.6%
 
-[re-read] runs with any file read more than once: 146/203 (71.9%); mean max-reads-of-one-file 2.27
+[re-read] baseline runs with any file read more than once: 31/48 (64.6%); mean max-reads-of-one-file 1.98
