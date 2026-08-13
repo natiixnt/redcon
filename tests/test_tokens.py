@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from redcon.core import tokens as token_module
 from redcon.core.benchmark import run_benchmark
 from redcon.core.pipeline import as_json_dict, run_pack
-from redcon.core import tokens as token_module
 from redcon.core.tokens import (
     describe_builtin_token_estimator,
     estimate_tokens,
@@ -66,7 +66,9 @@ model = "gpt-4o-mini"
     assert data["token_estimator"]["fallback_used"] is False
 
 
-def test_benchmark_includes_estimator_samples_and_fallback_status(tmp_path: Path, monkeypatch) -> None:
+def test_benchmark_includes_estimator_samples_and_fallback_status(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setattr("redcon.core.tokens._load_tiktoken", lambda: None)
     token_module._resolve_builtin_token_estimator.cache_clear()
     try:
@@ -134,7 +136,9 @@ def audit_everything(token: str) -> bool:
 
     full_text = (tmp_path / "src" / "auth.py").read_text(encoding="utf-8")
     full_tokens = estimate_tokens(full_text)
-    data = as_json_dict(run_pack("tighten auth login", repo=tmp_path, max_tokens=200))
+    data = as_json_dict(
+        run_pack("tighten auth login", repo=tmp_path, max_tokens=200, render_mode="compressed")
+    )
     entry = next(item for item in data["compressed_context"] if item["path"] == "src/auth.py")
 
     assert entry["strategy"] == "slice"

@@ -3185,9 +3185,9 @@ def _register_packing_commands(sub: argparse._SubParsersAction) -> None:
         choices=["compressed", "adaptive"],
         default=None,
         help=(
-            "Per-file delivery form. 'compressed' (default) always compresses to "
-            "fit the budget; 'adaptive' includes a file whole when it fits and "
-            "compresses only on overflow. Overrides [render] mode."
+            "Per-file delivery form. 'adaptive' (default) includes a file whole "
+            "when it fits the budget and compresses only on overflow; 'compressed' "
+            "always compresses to fit. Overrides [render] mode."
         ),
     )
     pack.add_argument(

@@ -61,7 +61,15 @@ def _make_run_data(entries: list[dict]) -> dict:
 
 def test_profiler_attributes_full_strategy_to_full_stage() -> None:
     data = _make_run_data(
-        [_make_compressed_entry("a.py", strategy="full", chunk_strategy="full-file", original_tokens=100, compressed_tokens=105)]
+        [
+            _make_compressed_entry(
+                "a.py",
+                strategy="full",
+                chunk_strategy="full-file",
+                original_tokens=100,
+                compressed_tokens=105,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_FULL
@@ -70,7 +78,15 @@ def test_profiler_attributes_full_strategy_to_full_stage() -> None:
 
 def test_profiler_attributes_symbol_strategy_to_symbol_stage() -> None:
     data = _make_run_data(
-        [_make_compressed_entry("b.py", strategy="symbol", chunk_strategy="symbol-extract-python", original_tokens=400, compressed_tokens=120)]
+        [
+            _make_compressed_entry(
+                "b.py",
+                strategy="symbol",
+                chunk_strategy="symbol-extract-python",
+                original_tokens=400,
+                compressed_tokens=120,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_SYMBOL_EXTRACTION
@@ -79,7 +95,15 @@ def test_profiler_attributes_symbol_strategy_to_symbol_stage() -> None:
 
 def test_profiler_attributes_slice_strategy_to_slicing_stage() -> None:
     data = _make_run_data(
-        [_make_compressed_entry("c.py", strategy="slice", chunk_strategy="lang-python", original_tokens=300, compressed_tokens=80)]
+        [
+            _make_compressed_entry(
+                "c.py",
+                strategy="slice",
+                chunk_strategy="lang-python",
+                original_tokens=300,
+                compressed_tokens=80,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_SLICING
@@ -88,7 +112,15 @@ def test_profiler_attributes_slice_strategy_to_slicing_stage() -> None:
 
 def test_profiler_attributes_summary_strategy_to_compression_stage() -> None:
     data = _make_run_data(
-        [_make_compressed_entry("d.py", strategy="summary", chunk_strategy="summary-preview", original_tokens=700, compressed_tokens=60)]
+        [
+            _make_compressed_entry(
+                "d.py",
+                strategy="summary",
+                chunk_strategy="summary-preview",
+                original_tokens=700,
+                compressed_tokens=60,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_COMPRESSION
@@ -97,7 +129,16 @@ def test_profiler_attributes_summary_strategy_to_compression_stage() -> None:
 
 def test_profiler_attributes_cache_reuse_regardless_of_strategy() -> None:
     data = _make_run_data(
-        [_make_compressed_entry("e.py", strategy="slice", chunk_strategy="lang-go", original_tokens=200, compressed_tokens=40, cache_status="reused")]
+        [
+            _make_compressed_entry(
+                "e.py",
+                strategy="slice",
+                chunk_strategy="lang-go",
+                original_tokens=200,
+                compressed_tokens=40,
+                cache_status="reused",
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_CACHE_REUSE
@@ -106,8 +147,17 @@ def test_profiler_attributes_cache_reuse_regardless_of_strategy() -> None:
 
 def test_profiler_attributes_snippet_strategy_to_snippet_stage() -> None:
     from redcon.core.profiler import STAGE_SNIPPET
+
     data = _make_run_data(
-        [_make_compressed_entry("f.py", strategy="snippet", chunk_strategy="snippet-keyword", original_tokens=250, compressed_tokens=90)]
+        [
+            _make_compressed_entry(
+                "f.py",
+                strategy="snippet",
+                chunk_strategy="snippet-keyword",
+                original_tokens=250,
+                compressed_tokens=90,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].stage == STAGE_SNIPPET
@@ -121,9 +171,27 @@ def test_profiler_attributes_snippet_strategy_to_snippet_stage() -> None:
 
 def test_profiler_totals_match_sum_of_per_file_values() -> None:
     entries = [
-        _make_compressed_entry("a.py", strategy="full", chunk_strategy="full-file", original_tokens=100, compressed_tokens=105),
-        _make_compressed_entry("b.py", strategy="symbol", chunk_strategy="symbol-extract-python", original_tokens=400, compressed_tokens=120),
-        _make_compressed_entry("c.py", strategy="summary", chunk_strategy="summary-preview", original_tokens=700, compressed_tokens=60),
+        _make_compressed_entry(
+            "a.py",
+            strategy="full",
+            chunk_strategy="full-file",
+            original_tokens=100,
+            compressed_tokens=105,
+        ),
+        _make_compressed_entry(
+            "b.py",
+            strategy="symbol",
+            chunk_strategy="symbol-extract-python",
+            original_tokens=400,
+            compressed_tokens=120,
+        ),
+        _make_compressed_entry(
+            "c.py",
+            strategy="summary",
+            chunk_strategy="summary-preview",
+            original_tokens=700,
+            compressed_tokens=60,
+        ),
     ]
     data = _make_run_data(entries)
     profile = build_savings_profile(data)
@@ -136,9 +204,27 @@ def test_profiler_totals_match_sum_of_per_file_values() -> None:
 
 def test_profiler_by_stage_sums_correctly() -> None:
     entries = [
-        _make_compressed_entry("a.py", strategy="symbol", chunk_strategy="symbol-extract-python", original_tokens=300, compressed_tokens=100),
-        _make_compressed_entry("b.ts", strategy="symbol", chunk_strategy="symbol-extract-typescript", original_tokens=200, compressed_tokens=80),
-        _make_compressed_entry("c.py", strategy="summary", chunk_strategy="summary-preview", original_tokens=600, compressed_tokens=50),
+        _make_compressed_entry(
+            "a.py",
+            strategy="symbol",
+            chunk_strategy="symbol-extract-python",
+            original_tokens=300,
+            compressed_tokens=100,
+        ),
+        _make_compressed_entry(
+            "b.ts",
+            strategy="symbol",
+            chunk_strategy="symbol-extract-typescript",
+            original_tokens=200,
+            compressed_tokens=80,
+        ),
+        _make_compressed_entry(
+            "c.py",
+            strategy="summary",
+            chunk_strategy="summary-preview",
+            original_tokens=600,
+            compressed_tokens=50,
+        ),
     ]
     data = _make_run_data(entries)
     profile = build_savings_profile(data)
@@ -164,7 +250,15 @@ def test_profiler_savings_pct_is_zero_when_no_files() -> None:
 def test_profiler_negative_savings_clamped_to_zero() -> None:
     # Compressed > original is a valid edge case when overhead is added
     data = _make_run_data(
-        [_make_compressed_entry("a.py", strategy="full", chunk_strategy="full-file", original_tokens=10, compressed_tokens=15)]
+        [
+            _make_compressed_entry(
+                "a.py",
+                strategy="full",
+                chunk_strategy="full-file",
+                original_tokens=10,
+                compressed_tokens=15,
+            )
+        ]
     )
     profile = build_savings_profile(data)
     assert profile.per_file[0].tokens_saved == 0
@@ -186,6 +280,7 @@ def test_profiler_delta_savings_tracked_from_delta_budget() -> None:
     }
     profile = build_savings_profile(data)
     from redcon.core.profiler import STAGE_DELTA
+
     assert profile.by_stage[STAGE_DELTA].tokens_saved == 850
 
 
@@ -196,13 +291,16 @@ def test_profiler_delta_savings_tracked_from_delta_budget() -> None:
 
 def test_profile_from_real_pack_run_shows_savings(tmp_path: Path) -> None:
     # Large file forces compression/summary strategy; small one stays full
-    _write(tmp_path / "src" / "router.py", "\n".join(
-        [f"def route_{i}(req): return '{i}'" for i in range(100)]
-    ))
+    _write(
+        tmp_path / "src" / "router.py",
+        "\n".join([f"def route_{i}(req): return '{i}'" for i in range(100)]),
+    )
     _write(tmp_path / "src" / "auth.py", "def login(u, p):\n    return True\n")
 
     engine = RedconEngine()
-    run = engine.pack(task="add auth to router", repo=tmp_path, max_tokens=800)
+    run = engine.pack(
+        task="add auth to router", repo=tmp_path, max_tokens=800, render_mode="compressed"
+    )
 
     profile = engine.profile(run)
 
@@ -219,9 +317,10 @@ def test_profile_from_real_pack_run_shows_savings(tmp_path: Path) -> None:
 
 
 def test_profile_token_savings_decrease_vs_full_file(tmp_path: Path) -> None:
-    _write(tmp_path / "src" / "big.py", "\n".join(
-        [f"def helper_{i}(): return {i}" for i in range(120)]
-    ))
+    _write(
+        tmp_path / "src" / "big.py",
+        "\n".join([f"def helper_{i}(): return {i}" for i in range(120)]),
+    )
 
     engine = RedconEngine()
     run = engine.pack(task="refactor helpers", repo=tmp_path, max_tokens=500)
@@ -232,14 +331,13 @@ def test_profile_token_savings_decrease_vs_full_file(tmp_path: Path) -> None:
 
 
 def test_profile_from_json_file(tmp_path: Path) -> None:
-    _write(tmp_path / "src" / "service.py", "\n".join(
-        [f"def op_{i}(): pass" for i in range(80)]
-    ))
+    _write(tmp_path / "src" / "service.py", "\n".join([f"def op_{i}(): pass" for i in range(80)]))
     engine = RedconEngine()
     run = engine.pack(task="optimize service", repo=tmp_path, max_tokens=400)
 
     run_json_path = tmp_path / "run.json"
     import json as _json
+
     run_json_path.write_text(_json.dumps(run, default=str), encoding="utf-8")
 
     profile = engine.profile(run_json_path)
@@ -255,13 +353,26 @@ def test_profile_from_json_file(tmp_path: Path) -> None:
 
 def test_render_profile_markdown_contains_required_sections() -> None:
     entries = [
-        _make_compressed_entry("src/big.py", strategy="summary", chunk_strategy="summary-preview", original_tokens=500, compressed_tokens=40),
-        _make_compressed_entry("src/small.py", strategy="full", chunk_strategy="full-file", original_tokens=50, compressed_tokens=55),
+        _make_compressed_entry(
+            "src/big.py",
+            strategy="summary",
+            chunk_strategy="summary-preview",
+            original_tokens=500,
+            compressed_tokens=40,
+        ),
+        _make_compressed_entry(
+            "src/small.py",
+            strategy="full",
+            chunk_strategy="full-file",
+            original_tokens=50,
+            compressed_tokens=55,
+        ),
     ]
     data = _make_run_data(entries)
     profile_data = build_savings_profile(data, run_json="run.json")
 
     from dataclasses import asdict
+
     md = render_profile_markdown(asdict(profile_data))
 
     assert "# Redcon Token Savings Profile" in md
@@ -279,21 +390,24 @@ def test_render_profile_markdown_contains_required_sections() -> None:
 
 
 def test_cli_profile_writes_json_and_markdown(tmp_path: Path) -> None:
-    _write(tmp_path / "src" / "router.py", "\n".join(
-        [f"def route_{i}(req): return '{i}'" for i in range(80)]
-    ))
+    _write(
+        tmp_path / "src" / "router.py",
+        "\n".join([f"def route_{i}(req): return '{i}'" for i in range(80)]),
+    )
     engine = RedconEngine()
     run = engine.pack(task="add auth to router", repo=tmp_path, max_tokens=600)
 
     run_json_path = tmp_path / "run.json"
     run_json_path.write_text(json.dumps(run, default=str), encoding="utf-8")
 
-    import sys
     from redcon.cli import build_parser
 
     parser = build_parser()
-    args = parser.parse_args(["profile", str(run_json_path), "--out-prefix", str(tmp_path / "profile")])
+    args = parser.parse_args(
+        ["profile", str(run_json_path), "--out-prefix", str(tmp_path / "profile")]
+    )
     import os
+
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     try:

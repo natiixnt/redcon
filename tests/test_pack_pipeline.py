@@ -136,6 +136,7 @@ def test_fragment_cache_reuses_reference_on_second_run(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1000
 snippet_score_threshold = 999
 """.strip(),
@@ -172,6 +173,7 @@ def test_fragment_cache_reuses_reference_across_repeated_tasks(tmp_path: Path) -
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1000
 snippet_score_threshold = 999
 """.strip(),
@@ -201,6 +203,7 @@ def test_fragment_cache_reports_token_savings(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1000
 snippet_score_threshold = 999
 """.strip(),
@@ -234,6 +237,7 @@ def test_warm_cache_produces_self_contained_prompt(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 """.strip(),
@@ -307,6 +311,7 @@ def test_python_language_aware_chunk_selection(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 symbol_extraction_enabled = false
@@ -351,6 +356,7 @@ def test_typescript_language_aware_chunk_selection(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 symbol_extraction_enabled = false
@@ -393,6 +399,7 @@ def test_unknown_extension_falls_back_to_keyword_window(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 symbol_extraction_enabled = false
@@ -423,6 +430,7 @@ def test_smart_slicing_uses_import_relationships_and_skips_unrelated_code(tmp_pa
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 symbol_extraction_enabled = false
@@ -490,6 +498,7 @@ def test_run_pack_can_emit_delta_context_package(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 snippet_total_line_limit = 40
@@ -588,7 +597,9 @@ recommended_compression_strategy = "aggressive"
     )
     _write(tmp_path / "src" / "notes.py", ("value = 'x' * 80\n" * 120))
 
-    data = as_json_dict(run_pack("rename widget", repo=tmp_path, max_tokens=None))
+    data = as_json_dict(
+        run_pack("rename widget", repo=tmp_path, max_tokens=None, render_mode="compressed")
+    )
 
     assert data["compressed_context"][0]["strategy"] == "summary"
     assert data["model_profile"]["selected_profile"] == "local-llm"
@@ -622,6 +633,7 @@ def test_progressive_packer_degrades_before_dropping(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 5000
 snippet_score_threshold = 0
 progressive_packer_enabled = true
@@ -665,6 +677,7 @@ def test_progressive_packer_triggers_degradation_with_metrics(tmp_path: Path) ->
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 50000
 snippet_score_threshold = 0
 progressive_packer_enabled = true
@@ -747,6 +760,7 @@ def test_greedy_fallback_when_progressive_disabled(tmp_path: Path) -> None:
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 progressive_packer_enabled = false
 """.strip(),
     )
@@ -778,6 +792,7 @@ def test_compressed_tokens_never_exceeds_original_tokens(tmp_path: Path) -> None
         tmp_path / "redcon.toml",
         """
 [compression]
+render_mode = "compressed"
 full_file_threshold_tokens = 1
 snippet_score_threshold = 0
 symbol_extraction_enabled = true
