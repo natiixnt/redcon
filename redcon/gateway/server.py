@@ -41,6 +41,22 @@ def _try_import_fastapi():
         return None, None
 
 
+def _bearer_token(authorization: str | None) -> str | None:
+    """Return the bearer token from an Authorization header, or None if the
+    Bearer scheme is absent.
+
+    Surrounding optional whitespace is stripped so both server implementations
+    authenticate a request identically. FastAPI and uvicorn strip trailing header
+    optional whitespace (OWS) before the app sees the value, while the stdlib
+    fallback does not; normalizing here keeps the two paths from disagreeing on
+    the same token.
+    """
+    header = authorization or ""
+    if not header.startswith("Bearer "):
+        return None
+    return header[len("Bearer ") :].strip()
+
+
 def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
     """Build and return a FastAPI application for the gateway."""
     fastapi, uvicorn = _try_import_fastapi()
@@ -67,10 +83,9 @@ def _build_fastapi_app(config: GatewayConfig, handlers: GatewayHandlers):
     async def _verify_api_key(authorization: str | None = Header(default=None)):
         if config.api_key is None:
             return  # auth disabled
-        auth_header = authorization or ""
-        if not auth_header.startswith("Bearer "):
+        token = _bearer_token(authorization)
+        if token is None:
             raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-        token = auth_header[len("Bearer ") :]
         if not hmac.compare_digest(token, config.api_key):
             raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -294,10 +309,8 @@ class GatewayServer:
 
                 # Auth check
                 if config.api_key:
-                    auth = self.headers.get("Authorization", "")
-                    if not auth.startswith("Bearer ") or not hmac.compare_digest(
-                        auth[len("Bearer ") :], config.api_key
-                    ):
+                    token = _bearer_token(self.headers.get("Authorization"))
+                    if token is None or not hmac.compare_digest(token, config.api_key):
                         self._send_json({"error": "Invalid API key"}, 401)
                         return
 
