@@ -94,7 +94,7 @@ in per-file form:
 - `adaptive` (default): include a file whole when it fits the remaining budget,
   and fall back to a compressed (symbol-extracted) representation only on
   overflow. On a repository that fits the budget this degenerates to whole files
-  with no compression.
+  with no compression. Adaptive is **size-aware** (see below).
 - `compressed`: always compress each file to fit, the pre-1.17.0 behaviour.
 
 ```toml
@@ -108,6 +108,17 @@ Adaptive became the default in 1.17.0, based on the measurement in
 retrieval and the old compressed pack). The `--render-mode` CLI flag overrides
 this setting per run. Pin `mode = "compressed"` (or `--render-mode compressed`)
 for the pre-1.17.0 pack form.
+
+**Size-aware adaptive (since 1.18.0).** On the largest repositories - the same top
+band that receives the 120k default budget (estimated repository tokens over the
+last budget step) - adaptive delivers only the top-ranked files whole and
+compresses the tail, instead of spending the whole budget on a few whole files.
+This recovers ground-truth coverage that plain adaptive gives up under a 120k
+budget on multi-million-token repositories, at a small heavy-corpus line-overlap
+cost (see [docs/research/exp4-tiered-rendering.md](research/exp4-tiered-rendering.md)).
+Smaller and mid-sized repositories keep plain adaptive. This is internal to
+adaptive with no config surface; `--render-mode compressed` still bypasses it
+entirely.
 
 ## Model Profiles
 

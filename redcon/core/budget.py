@@ -40,6 +40,22 @@ def default_budget_for_repo_tokens(repo_tokens: int) -> int:
     return _LARGE_REPO_BUDGET
 
 
+# Adaptive-v2 size gate (Experiment 4). On the largest repositories - the same
+# top band that gets the 120k budget, repositories over the last budget-step
+# ceiling - adaptive delivers the top-ranked files whole and compresses the tail
+# (tiered ``topk:10``) to recover ground-truth coverage that plain adaptive gives
+# up under a 120k budget. Smaller repositories keep plain adaptive. The gate is
+# internal to adaptive: no config or CLI surface, and ``--render-mode compressed``
+# still bypasses it. See docs/research/exp4-tiered-rendering.md.
+TOP_BAND_REPO_TOKENS = _BUDGET_STEPS[-1][0]
+ADAPTIVE_TOP_BAND_POLICY = "topk:10"
+
+
+def repo_in_adaptive_top_band(repo_tokens: int) -> bool:
+    """Whether a repository of *repo_tokens* tokens is in the adaptive-v2 top band."""
+    return repo_tokens > TOP_BAND_REPO_TOKENS
+
+
 def coverage_warning(repo_tokens: int, budget: int) -> str | None:
     """A warning if *budget* is below the recommended default for the repo size.
 
