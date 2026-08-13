@@ -169,6 +169,12 @@ class CompressionSettings:
     # --render-mode CLI flag. See redcon/compressors/context_compressor.py.
     # Adaptive became the default in 1.17.0 (see docs/research/exp3-adaptive-rendering.md).
     render_mode: str = "adaptive"
+    # Experiment 4 (tiered rendering) dev-only knob: not user-visible, no CLI or
+    # [render] surface, empty by default (plain adaptive). When set under adaptive
+    # mode it selects a tiered whole/compressed policy for deterministic sweeps:
+    # "split:<frac>", "topk:<int>" or "score:<float>". See
+    # redcon/compressors/context_compressor.py and docs/research/exp4-tiered-rendering.md.
+    tiered_policy: str = ""
 
 
 @dataclass(slots=True)

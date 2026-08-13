@@ -627,7 +627,22 @@ def compress_ranked_files(
             )
         )
 
-    if cfg.render_mode == "adaptive":
+    if cfg.render_mode == "adaptive" and getattr(cfg, "tiered_policy", ""):
+        result = _compress_tiered(
+            prepared=prepared,
+            max_tokens=max_tokens,
+            cfg=cfg,
+            cache=cache,
+            seen_imports=seen_imports,
+            token_estimator=token_estimator,
+            files_skipped=files_skipped,
+            total_raw=total_raw,
+            duplicate_reads_prevented=duplicate_reads_prevented,
+            ranked_files=ranked_files,
+            summarizer=summarizer,
+            policy=cfg.tiered_policy,
+        )
+    elif cfg.render_mode == "adaptive":
         result = _compress_adaptive(
             prepared=prepared,
             max_tokens=max_tokens,
@@ -825,6 +840,164 @@ def _compress_adaptive(
         files_skipped=files_skipped,
         estimated_input_tokens=total_compressed,
         estimated_saved_tokens=max(0, total_raw - total_compressed),
+        duplicate_reads_prevented=duplicate_reads_prevented,
+        cache=cache_snapshot,
+        cache_hits=cache_snapshot.hits,
+        quality_risk_estimate=risk,
+        summarizer=summarizer.snapshot(),
+        degraded_files=[],
+        degradation_savings=0,
+    )
+
+
+def _compress_tiered(
+    prepared: list[FileTiers],
+    max_tokens: int,
+    cfg: CompressionSettings,
+    cache: SummaryCacheBackend,
+    seen_imports: set[str],
+    token_estimator: Callable[[str], int],
+    files_skipped: list[str],
+    total_raw: int,
+    duplicate_reads_prevented: int,
+    ranked_files: list[RankedFile],
+    summarizer: SummarizationService,
+    policy: str,
+) -> CompressionResult:
+    """Tiered whole/compressed policies (Experiment 4 dev only, not user-visible).
+
+    Plain adaptive spends the budget on whole files greedily until it is full, so
+    on a large repo it delivers a few whole files and its ground-truth coverage
+    drops. Tiered rendering reserves part of the budget for compressed entries so
+    coverage stays high while the top-ranked files are still delivered whole.
+
+    Policy strings (set via ``[compression].tiered_policy`` in code only, no CLI
+    or ``[render]`` surface):
+
+    - ``split:<frac>`` - whole files fill a sub-budget of ``frac * max_tokens`` in
+      ranking order; every remaining file is compressed into the rest of the
+      budget.
+    - ``topk:<int>`` - the top K ranked files are delivered whole (if they fit the
+      total budget); the rest are compressed.
+    - ``score:<float>`` - files with a ranking score at or above the threshold are
+      delivered whole (if they fit); the rest are compressed.
+
+    Deterministic: two passes in ranking order, same estimator, no randomness.
+    Each entry records its delivery form; the output stays in ranking order.
+    """
+    from redcon.compressors.representations import Tier
+
+    def _whole_entry(ft: FileTiers) -> CompressedFile:
+        whole_tier = Tier(
+            strategy="full",
+            text=f"# Full: {ft.path}\n{ft.full_text}",
+            tokens=token_estimator(ft.full_text),
+            chunk_strategy="full-file",
+            chunk_reason="tiered: whole file",
+            selected_ranges=(
+                [
+                    {
+                        "start_line": 1,
+                        "end_line": ft.line_count,
+                        "kind": "full",
+                        "reason": "tiered whole",
+                    }
+                ]
+                if ft.line_count > 0
+                else []
+            ),
+        )
+        entry = _finalize_entry(
+            ft.ranked.file, whole_tier, ft.raw_tokens, seen_imports, cache, token_estimator
+        )
+        entry.delivery = "whole"
+        return entry
+
+    def _compressed_entry(ft: FileTiers) -> CompressedFile | None:
+        if not ft.tiers:
+            return None
+        entry = _finalize_entry(
+            ft.ranked.file, ft.tiers[0], ft.raw_tokens, seen_imports, cache, token_estimator
+        )
+        entry.delivery = "compressed"
+        return entry
+
+    kind, _, arg = policy.partition(":")
+    if kind == "split":
+        whole_budget = int(float(arg) * max_tokens)
+
+        def _is_whole_candidate(index: int, ft: FileTiers) -> bool:
+            return True
+    elif kind == "topk":
+        whole_budget = max_tokens
+        top_k = int(arg)
+
+        def _is_whole_candidate(index: int, ft: FileTiers) -> bool:
+            return index < top_k
+    elif kind == "score":
+        whole_budget = max_tokens
+        threshold = float(arg)
+
+        def _is_whole_candidate(index: int, ft: FileTiers) -> bool:
+            return ft.ranked.score >= threshold
+    else:
+        raise ValueError(f"unknown tiered_policy: {policy!r}")
+
+    order = {ft.path: index for index, ft in enumerate(prepared)}
+    compressed_files: list[CompressedFile] = []
+    files_included: list[str] = []
+    delivered: set[str] = set()
+    total = 0
+    used_whole = 0
+
+    # Pass 1: deliver whole candidates, capped by the whole sub-budget and the
+    # total budget, in ranking order.
+    for index, ft in enumerate(prepared):
+        if not _is_whole_candidate(index, ft):
+            continue
+        entry = _whole_entry(ft)
+        cost = entry.compressed_tokens
+        if used_whole + cost <= whole_budget and total + cost <= max_tokens:
+            used_whole += cost
+            total += cost
+            compressed_files.append(entry)
+            files_included.append(ft.path)
+            delivered.add(ft.path)
+
+    # Pass 2: compress everything not delivered whole into the remaining budget.
+    for ft in prepared:
+        if ft.path in delivered:
+            continue
+        entry = _compressed_entry(ft)
+        if entry is None:
+            files_skipped.append(ft.path)
+            continue
+        if total + entry.compressed_tokens <= max_tokens:
+            total += entry.compressed_tokens
+            compressed_files.append(entry)
+            files_included.append(ft.path)
+        else:
+            files_skipped.append(ft.path)
+
+    compressed_files.sort(key=lambda entry: order.get(entry.path, len(order)))
+    files_included.sort(key=lambda path: order.get(path, len(order)))
+
+    risk = _build_risk_estimate(
+        cfg,
+        files_skipped,
+        ranked_files,
+        total,
+        total_raw,
+        max_tokens=max_tokens,
+        files_included_count=len(files_included),
+    )
+    cache_snapshot = cache.snapshot()
+    return CompressionResult(
+        compressed_files=compressed_files,
+        files_included=files_included,
+        files_skipped=files_skipped,
+        estimated_input_tokens=total,
+        estimated_saved_tokens=max(0, total_raw - total),
         duplicate_reads_prevented=duplicate_reads_prevented,
         cache=cache_snapshot,
         cache_hits=cache_snapshot.hits,

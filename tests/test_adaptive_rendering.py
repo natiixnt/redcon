@@ -13,6 +13,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from redcon.config import CompressionSettings, RedconConfig, load_config
 from redcon.core import pipeline
 from redcon.stages.workflow import as_json_dict
@@ -40,6 +42,22 @@ def _pack(repo: Path, task: str, max_tokens: int, mode: str | None = None) -> di
     config = RedconConfig(compression=compression)
     return as_json_dict(
         pipeline.run_pack(task, repo, max_tokens=max_tokens, config=config, record_history=False)
+    )
+
+
+def _pack_tiered(repo: Path, task: str, max_tokens: int, policy: str) -> dict:
+    config = RedconConfig(
+        compression=CompressionSettings(render_mode="adaptive", tiered_policy=policy)
+    )
+    return as_json_dict(
+        pipeline.run_pack(
+            task,
+            repo,
+            max_tokens=max_tokens,
+            config=config,
+            render_mode="adaptive",
+            record_history=False,
+        )
     )
 
 
@@ -133,3 +151,43 @@ def test_invalid_render_mode_warns():
     cfg = RedconConfig(compression=CompressionSettings(render_mode="nonsense"))
     warnings = cfg.validate()
     assert any("mode" in w and "adaptive" in w for w in warnings)
+
+
+# --- Experiment 4 tiered policies (dev-only knob) ---
+
+
+def test_tiered_policies_respect_budget_and_are_deterministic(tmp_path: Path):
+    repo = _overflow_repo(tmp_path)
+    for policy in ("split:0.3", "split:0.5", "topk:1", "score:0.0"):
+        for budget in (400, 800, 1500):
+            first = _pack_tiered(repo, "login retry helper", budget, policy)
+            assert first["budget"]["estimated_input_tokens"] <= budget
+            second = _pack_tiered(repo, "login retry helper", budget, policy)
+            assert [(e["path"], e["delivery"], e["text"]) for e in first["compressed_context"]] == [
+                (e["path"], e["delivery"], e["text"]) for e in second["compressed_context"]
+            ]
+
+
+def test_tiered_topk_delivers_at_most_k_whole(tmp_path: Path):
+    repo = _overflow_repo(tmp_path)
+    data = _pack_tiered(repo, "login retry helper", 1500, "topk:1")
+    whole = [e for e in data["compressed_context"] if e["delivery"] == "whole"]
+    assert len(whole) <= 1
+    # The tail is still delivered (compressed), so coverage is not lost to topk.
+    assert any(e["delivery"] == "compressed" for e in data["compressed_context"])
+
+
+def test_tiered_empty_policy_is_plain_adaptive(tmp_path: Path):
+    # An empty tiered_policy under adaptive is identical to plain adaptive.
+    repo = _overflow_repo(tmp_path)
+    tiered = _pack_tiered(repo, "login retry helper", 600, "")["compressed_context"]
+    plain = _pack(repo, "login retry helper", max_tokens=600, mode="adaptive")["compressed_context"]
+    assert [(e["path"], e["delivery"]) for e in tiered] == [
+        (e["path"], e["delivery"]) for e in plain
+    ]
+
+
+def test_tiered_unknown_policy_raises(tmp_path: Path):
+    repo = _overflow_repo(tmp_path)
+    with pytest.raises(ValueError, match="tiered_policy"):
+        _pack_tiered(repo, "login retry helper", 600, "bogus:1")
