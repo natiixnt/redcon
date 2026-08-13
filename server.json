@@ -7,13 +7,13 @@
     "url": "https://github.com/natiixnt/redcon",
     "source": "github"
   },
-  "version": "1.17.0",
+  "version": "1.18.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "redcon",
-      "version": "1.17.0",
+      "version": "1.18.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
