@@ -16,6 +16,7 @@ Precedence:
 - `[score]`
 - `[model]`
 - `[compression]`
+- `[render]`
 - `[summarization]`
 - `[tokens]`
 - `[plugins]`
@@ -50,6 +51,9 @@ critical_path_keywords = ["auth", "permissions", "billing"]
 summary_preview_lines = 10
 # profile = "max"  # tighter tier thresholds, ~20% fewer input tokens
 
+[render]
+mode = "adaptive"
+
 [summarization]
 backend = "deterministic"
 adapter = ""
@@ -80,6 +84,30 @@ file_path = ".redcon/telemetry.jsonl"
 Telemetry remains disabled by default and sends no network traffic.
 
 Plugin selection and explicit registration are documented in [Plugins](plugins.md).
+
+## Render mode
+
+`[render] mode` chooses how each ranked file is delivered into the pack. Both
+values keep the same ranking and honour the same token budget; they differ only
+in per-file form:
+
+- `adaptive` (default): include a file whole when it fits the remaining budget,
+  and fall back to a compressed (symbol-extracted) representation only on
+  overflow. On a repository that fits the budget this degenerates to whole files
+  with no compression.
+- `compressed`: always compress each file to fit, the pre-1.17.0 behaviour.
+
+```toml
+[render]
+mode = "adaptive"
+```
+
+Adaptive became the default in 1.17.0, based on the measurement in
+[docs/research/exp3-adaptive-rendering.md](research/exp3-adaptive-rendering.md)
+(at equal budget it improves one-shot edit fidelity over both a naive whole-file
+retrieval and the old compressed pack). The `--render-mode` CLI flag overrides
+this setting per run. Pin `mode = "compressed"` (or `--render-mode compressed`)
+for the pre-1.17.0 pack form.
 
 ## Model Profiles
 

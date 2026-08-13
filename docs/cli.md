@@ -106,6 +106,13 @@ reported quality risk (measured on this repository). It can also be set
 persistently with `[compression] profile = "max"` in `redcon.toml`. `run.json`
 always records which profile actually ran (`compression_profile`).
 
+`--render-mode adaptive|compressed` chooses the per-file delivery form.
+`adaptive` (the default since 1.17.0) includes a file whole when it fits the
+remaining budget and compresses only on overflow; `compressed` always compresses
+to fit (the pre-1.17.0 form). It overrides `[render] mode` in `redcon.toml`. See
+[Configuration](configuration.md) and the measurement in
+[docs/research/exp3-adaptive-rendering.md](research/exp3-adaptive-rendering.md).
+
 Every pack prints a `Cache key`: a stable 16-hex fingerprint of the packed
 content, reproduced exactly when the tree and task are unchanged. Edits that
 do not alter what gets packed keep the key (and any provider prompt cache
