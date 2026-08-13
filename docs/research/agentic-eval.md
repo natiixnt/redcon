@@ -21,7 +21,7 @@ channels), and pre-injecting the pack does not beat baseline in a multi-turn loo
 at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost, with a 33%
 turn-cap rate; precision is intact once redcon's own build artifact is excluded).
 A deterministic sweep shows the coverage ceiling is a **budget limit,
-not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Three
+not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Four
 follow-up experiments closed the delivery picture. Two are negative: injecting only
 the ranking list does not beat baseline in a multi-turn loop (Experiment 2), and
 redcon's default **compressed** pack does not beat cheap keyword retrieval in a
@@ -32,7 +32,13 @@ retrieval and compressed redcon on one-shot edit fidelity at equal budget**
 (Experiment 3; file-overlap 0.432 vs 0.319 vs 0.196 pooled). The mechanism is clean:
 per-parse quality matches naive (the whole-file format closes the gap that
 compression opened), and redcon's edge comes from a higher parse rate (its ranking
-makes the model commit to a valid diff more often). Redcon's demonstrated value is
+makes the model commit to a valid diff more often). The fourth refines the largest
+repos: **tiered rendering** (top files whole, a compressed tail) recovers the heavy
+ground-truth coverage adaptive gave up (0.756 vs 0.363) and lifts the heavy parse
+rate, clearing all three pre-registered bars, but the file-overlap gain is modest
+and heavy-only with a line-overlap trade (Experiment 4, held with nuance). The
+product outcome is a size-gated adaptive-v2, not a uniform change. Redcon's
+demonstrated value is
 therefore **deterministic, budget-capped, auditable packing with measured token
 savings versus an agent reading the repository by hand (layer 1), plus a one-shot
 selection-quality advantage once the pack is rendered adaptively (Experiment 3)**.
@@ -201,17 +207,46 @@ The two directions registered above were run and both came back negative.
    adaptive-rendered redcon beats both cheap keyword retrieval and compressed redcon
    on one-shot edit fidelity. Per the pre-registered interpretation, adaptive becomes
    the next-release default. Full data: `docs/research/exp3-adaptive-rendering.md`.
+4. **Tiered rendering (Experiment 4).** Resolved: **held with nuance; product
+   outcome is a size-gated adaptive-v2.** A decomposition of Exp 3 showed adaptive
+   bought whole-file fidelity by spending its budget on whole files, dropping heavy
+   ground-truth coverage (0.363 vs compressed's 0.896). Tiered rendering reserves
+   budget for a compressed tail; a deterministic dev-corpus sweep (disjoint from the
+   held-out 24) picked `topk:10` (top files whole, the rest compressed). Arm W2 on
+   the held-out 24 confirms all three pre-registered hypotheses: **H1** W2 heavy
+   file-overlap > adaptive (0.235 vs 0.208); **H2** W2 heavy pack-GT-coverage >= 0.7
+   (0.756, recovered from 0.363); **H3** W2 small file-overlap >= 0.606 (0.625).
+   Honestly, the heavy win is modest and parse-rate-driven: W2 lifts the heavy parse
+   rate to 0.92 (vs 0.62) and coverage to 0.756, so the model commits to a valid diff
+   more often, but per-parse fidelity is lower (0.256 vs 0.333) and heavy line-overlap
+   trades down (0.026 vs 0.048, fewer whole files); small file-overlap is marginally
+   below adaptive with line-overlap above; pooled file-overlap is essentially tied
+   (0.430 vs 0.432). Because the gain is heavy-only and mixed, the product outcome is
+   **not a uniform flip** but a **size-gated adaptive-v2**: plain adaptive stays for
+   repos below the top budget band, and only in the top band (estimated repo tokens
+   over 3M, the 120k-budget regime measured here) adaptive applies `topk:10`
+   internally. Middle bands (45k/75k budgets) stay plain adaptive; that regime is
+   unmeasured. Full data: `docs/research/exp4-tiered-rendering.md`.
 
 ## Open questions (registered)
 
-All registered questions are resolved (see above). The three follow-ups closed the
-delivery picture: one-shot compressed selection does not beat naive (Exp 1,
-negative); ranking-list push does not beat baseline in a loop (Exp 2, negative);
-and adaptive rendering - redcon's ranking delivered as whole files when they fit -
-beats both naive and compressed on one-shot edit fidelity (Exp 3, positive). The
-scope of the Exp 3 win is strictly one-shot and few-turn, non-interactive flows;
-the multi-turn end-task negatives from night 1 and night 2 stand and are not
-reopened.
+One registered question remains gated, not run:
+
+1. **Line-numbered whole files (Experiment 4 second question).** Render whole files
+   with line-number prefixes so the model can anchor exact `@@` hunks (line-overlap
+   is low even when file-overlap is high, and the tiered heavy win came at a
+   line-overlap cost). Registered with a cost note (a second arm, roughly one more
+   48-cell pass); it is not bundled into any run and needs its own pre-registration
+   and window.
+
+The delivery picture is otherwise closed: one-shot compressed selection does not
+beat naive (Exp 1, negative); ranking-list push does not beat baseline in a loop
+(Exp 2, negative); adaptive rendering beats both naive and compressed on one-shot
+edit fidelity (Exp 3, positive); and size-gating adaptive to tiered `topk:10` on the
+largest repos recovers heavy coverage and parse rate at a line-overlap trade (Exp 4,
+held with nuance). All wins are scoped strictly to one-shot and few-turn,
+non-interactive flows; the multi-turn end-task negatives from night 1 and night 2
+stand and are not reopened.
 
 ## Reproduce
 
