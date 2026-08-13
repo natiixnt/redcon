@@ -21,7 +21,7 @@ channels), and pre-injecting the pack does not beat baseline in a multi-turn loo
 at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost, with a 33%
 turn-cap rate; precision is intact once redcon's own build artifact is excluded).
 A deterministic sweep shows the coverage ceiling is a **budget limit,
-not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Four
+not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Five
 follow-up experiments closed the delivery picture. Two are negative: injecting only
 the ranking list does not beat baseline in a multi-turn loop (Experiment 2), and
 redcon's default **compressed** pack does not beat cheap keyword retrieval in a
@@ -37,7 +37,12 @@ repos: **tiered rendering** (top files whole, a compressed tail) recovers the he
 ground-truth coverage adaptive gave up (0.756 vs 0.363) and lifts the heavy parse
 rate, clearing all three pre-registered bars, but the file-overlap gain is modest
 and heavy-only with a line-overlap trade (Experiment 4, held with nuance). The
-product outcome is a size-gated adaptive-v2, not a uniform change. Redcon's
+product outcome is a size-gated adaptive-v2, not a uniform change. The fifth tests
+a third delivery channel, **compressing the tool results the agent already pulled**:
+an offline ceiling on the night-2 transcripts closes it at Phase A, because the
+compressible volume lives in reads where compression preserves the eventually-edited
+lines only 12.6 percent of the time, leaving a safe saving of 1.88 percent of run
+cost (Experiment 6, negative ceiling, no agent run). Redcon's
 demonstrated value is
 therefore **deterministic, budget-capped, auditable packing with measured token
 savings versus an agent reading the repository by hand (layer 1), plus a one-shot
@@ -227,6 +232,20 @@ The two directions registered above were run and both came back negative.
    over 3M, the 120k-budget regime measured here) adaptive applies `topk:10`
    internally. Middle bands (45k/75k budgets) stay plain adaptive; that regime is
    unmeasured. Full data: `docs/research/exp4-tiered-rendering.md`.
+5. **Tool-result compression (Experiment 6, third delivery channel).** Resolved:
+   **closed at Phase A, negative ceiling.** Pull and push both add unrequested
+   context; the third channel instead compresses the tool results the agent
+   already asked for (Read, Grep, test output, git diff), so cost strictly drops
+   and only quality is at stake. An offline re-render of the 228 night-2
+   transcripts through redcon's existing machinery put the ceiling below the bar:
+   per-run tool-result reduction is a median 17.3 percent (precise slice), but the
+   volume sits in reads, and a symbol-compressed read preserves the lines the
+   agent later edits only **12.6 percent** of the time, so read compression is
+   unsafe. The safe channels alone (schema-aware command output plus snapshot-delta
+   on re-reads) are **1.88 percent** of the mean run cost under the cache pricing
+   model, short of the pre-registered ~5 percent gate, so there is no Phase B. Grep
+   condensation was not counted as safe: its navigation harm is unmeasured. Full
+   data: `docs/research/exp6-toolresult-phaseA.md`.
 
 ## Open questions (registered)
 
@@ -242,11 +261,12 @@ One registered question remains gated, not run:
 The delivery picture is otherwise closed: one-shot compressed selection does not
 beat naive (Exp 1, negative); ranking-list push does not beat baseline in a loop
 (Exp 2, negative); adaptive rendering beats both naive and compressed on one-shot
-edit fidelity (Exp 3, positive); and size-gating adaptive to tiered `topk:10` on the
+edit fidelity (Exp 3, positive); size-gating adaptive to tiered `topk:10` on the
 largest repos recovers heavy coverage and parse rate at a line-overlap trade (Exp 4,
-held with nuance). All wins are scoped strictly to one-shot and few-turn,
-non-interactive flows; the multi-turn end-task negatives from night 1 and night 2
-stand and are not reopened.
+held with nuance); and compressing the tool results the agent already pulled saves
+too little safely to pursue (Exp 6, closed at Phase A, negative ceiling). All wins
+are scoped strictly to one-shot and few-turn, non-interactive flows; the multi-turn
+end-task negatives from night 1 and night 2 stand and are not reopened.
 
 ## Reproduce
 
