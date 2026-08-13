@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Adaptive rendering is now **size-aware**: on the largest repositories (the top
+  budget band, estimated repository tokens over the last budget step, the
+  120k-budget regime), adaptive delivers only the top-ranked files whole and
+  compresses the tail, instead of spending the whole budget on a few whole files.
+  Smaller and mid-sized repositories are unchanged. Driven by Experiment 4 (see
+  `docs/research/exp4-tiered-rendering.md`): on the held-out heavy tasks this
+  recovers ground-truth coverage (0.756 vs plain adaptive's 0.363) and lifts the
+  parse rate (0.92 vs 0.62), raising heavy one-shot file-overlap above plain
+  adaptive - **the trade is a lower heavy line-overlap (fewer whole files) and no
+  change on small repositories**. The gate is internal to adaptive with no config
+  surface; `--render-mode compressed` still bypasses it. **Packs change on the
+  largest repositories, so their `prompt_cache_key` changes once on upgrade;
+  smaller repositories are byte-identical. Pin `--render-mode compressed` for the
+  pre-1.17.0 pack form.**
+
 ## [1.17.0] - 2026-08-13
 
 ### Changed

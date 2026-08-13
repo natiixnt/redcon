@@ -191,3 +191,59 @@ def test_tiered_unknown_policy_raises(tmp_path: Path):
     repo = _overflow_repo(tmp_path)
     with pytest.raises(ValueError, match="tiered_policy"):
         _pack_tiered(repo, "login retry helper", 600, "bogus:1")
+
+
+# --- Experiment 4 size-gated adaptive-v2 ---
+
+
+def test_repo_in_adaptive_top_band_boundary():
+    from redcon.core.budget import TOP_BAND_REPO_TOKENS, repo_in_adaptive_top_band
+
+    assert repo_in_adaptive_top_band(TOP_BAND_REPO_TOKENS) is False  # at ceiling: not top band
+    assert repo_in_adaptive_top_band(TOP_BAND_REPO_TOKENS + 1) is True
+    assert repo_in_adaptive_top_band(100_000) is False
+
+
+def _large_repo(tmp_path: Path) -> Path:
+    # Many small ranked-relevant files plus filler under the scan size limit, so the
+    # repo crosses the top-band token threshold (> 3M tokens = > 12 MB bytes).
+    files = {
+        f"src/login_{i}.py": f"def login_retry_{i}(user):\n    return retry_{i}(user)\n"
+        for i in range(15)
+    }
+    filler_line = "value = 'x' * 40  # filler content padding the repository size\n"
+    filler = filler_line * 25_000  # about 1.5 MB per file, under the 2 MB scan limit
+    for i in range(9):  # about 13.5 MB of filler => over the 3M-token top band
+        files[f"data/filler_{i}.py"] = filler
+    return _repo(tmp_path, files)
+
+
+def test_size_gate_tiers_large_repo_under_adaptive(tmp_path: Path):
+    # On a > 3M-token repo, adaptive gates to topk:10: at most 10 whole entries and a
+    # compressed tail, instead of plain adaptive's greedy whole delivery.
+    repo = _large_repo(tmp_path)
+    data = _pack(repo, "login retry", max_tokens=120_000, mode="adaptive")
+    cc = data["compressed_context"]
+    whole = [e for e in cc if e["delivery"] == "whole"]
+    assert len(whole) <= 10
+    assert any(e["delivery"] == "compressed" for e in cc)
+    assert data["budget"]["estimated_input_tokens"] <= 120_000
+
+
+def test_size_gate_not_fired_on_small_repo(tmp_path: Path):
+    # The same 15 relevant files without the filler stay under the threshold, so
+    # plain adaptive delivers them all whole (more than the topk:10 cap).
+    files = {
+        f"src/login_{i}.py": f"def login_retry_{i}(user):\n    return retry_{i}(user)\n"
+        for i in range(15)
+    }
+    repo = _repo(tmp_path, files)
+    data = _pack(repo, "login retry", max_tokens=120_000, mode="adaptive")
+    whole = [e for e in data["compressed_context"] if e["delivery"] == "whole"]
+    assert len(whole) > 10  # not gated: all relevant files delivered whole
+
+
+def test_size_gate_bypassed_by_compressed_mode(tmp_path: Path):
+    repo = _large_repo(tmp_path)
+    data = _pack(repo, "login retry", max_tokens=120_000, mode="compressed")
+    assert all(e["delivery"] == "compressed" for e in data["compressed_context"])

@@ -13,6 +13,7 @@ from redcon.compressors.summarizers import normalize_summarizer_report
 from redcon.config import RedconConfig, WorkspaceDefinition, load_config
 from redcon.core.agent_planning import build_agent_workflow_plan
 from redcon.core.agent_simulation import simulate_agent_workflow
+from redcon.core.budget import ADAPTIVE_TOP_BAND_POLICY, repo_in_adaptive_top_band
 from redcon.core.delta import build_delta_report, effective_pack_metrics, resolve_previous_run_label
 from redcon.core.diffing import diff_run_artifacts
 from redcon.core.heatmap import build_heatmap_report, heatmap_as_dict
@@ -442,6 +443,17 @@ def run_pack(
         scan_summary = scan_result.summary
         scanned_repos = []
     telemetry.emit("scan_completed", scanned_files=len(files), scanned_repos=len(scanned_repos))
+    # Size-gated adaptive-v2 (Experiment 4): on the largest repositories, adaptive
+    # delivers the top-ranked files whole and compresses the tail (tiered topk:10)
+    # to recover ground-truth coverage. Internal to adaptive - only when render mode
+    # is adaptive and no explicit tiered policy is set, using the scanned file sizes
+    # (bytes / 4) already in hand, so there is no second scan.
+    if prepared_cfg.compression.render_mode == "adaptive" and not (
+        prepared_cfg.compression.tiered_policy or ""
+    ):
+        repo_tokens = sum(max(0, getattr(record, "size_bytes", 0)) // 4 for record in files)
+        if repo_in_adaptive_top_band(repo_tokens):
+            prepared_cfg.compression.tiered_policy = ADAPTIVE_TOP_BAND_POLICY
     ranked = run_score_stage(
         task,
         files,
