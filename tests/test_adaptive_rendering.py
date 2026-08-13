@@ -49,12 +49,20 @@ _SMALL_FILES = {
 }
 
 
-def test_default_mode_is_compressed(tmp_path: Path):
-    # No render_mode set: every entry is delivered compressed, unchanged behaviour.
-    assert CompressionSettings().render_mode == "compressed"
+def test_default_mode_is_adaptive(tmp_path: Path):
+    # Default flipped to adaptive (Exp 3, next release): a repo that fits the budget
+    # is delivered whole with no render_mode set.
+    assert CompressionSettings().render_mode == "adaptive"
     repo = _repo(tmp_path, _SMALL_FILES)
     data = _pack(repo, "login retry", max_tokens=5000)
     assert data["compressed_context"], "expected at least one included file"
+    assert all(e["delivery"] == "whole" for e in data["compressed_context"])
+
+
+def test_compressed_mode_still_available(tmp_path: Path):
+    # The old behaviour is still selectable explicitly.
+    repo = _repo(tmp_path, _SMALL_FILES)
+    data = _pack(repo, "login retry", max_tokens=5000, mode="compressed")
     assert all(e["delivery"] == "compressed" for e in data["compressed_context"])
 
 

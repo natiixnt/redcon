@@ -163,11 +163,12 @@ class CompressionSettings:
     max_degradation_rounds: int = 1
     risk_skip_weight: float = 0.55
     risk_compression_weight: float = 0.45
-    # Delivery form for each ranked file. "compressed" (default, unchanged) always
-    # compresses to fit the budget; "adaptive" includes a file whole when it fits
-    # the remaining budget and only compresses on overflow. Set via [render] mode
-    # or the --render-mode CLI flag. See redcon/compressors/context_compressor.py.
-    render_mode: str = "compressed"
+    # Delivery form for each ranked file. "adaptive" (default) includes a file
+    # whole when it fits the remaining budget and only compresses on overflow;
+    # "compressed" always compresses to fit. Set via [render] mode or the
+    # --render-mode CLI flag. See redcon/compressors/context_compressor.py.
+    # Adaptive became the default in 1.17.0 (see docs/research/exp3-adaptive-rendering.md).
+    render_mode: str = "adaptive"
 
 
 @dataclass(slots=True)

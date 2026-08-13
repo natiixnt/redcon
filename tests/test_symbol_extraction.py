@@ -195,6 +195,7 @@ def helper() -> None:
 
     cfg = RedconConfig(
         compression=CompressionSettings(
+            render_mode="compressed",
             full_file_threshold_tokens=1,
             snippet_score_threshold=0,
             snippet_total_line_limit=40,
@@ -245,6 +246,7 @@ def helper() -> None:
 
     cfg = RedconConfig(
         compression=CompressionSettings(
+            render_mode="compressed",
             full_file_threshold_tokens=1,
             snippet_score_threshold=0,
             snippet_total_line_limit=40,
@@ -284,6 +286,7 @@ class AuthService:
 
     full_cfg = RedconConfig(
         compression=CompressionSettings(
+            render_mode="compressed",
             full_file_threshold_tokens=100_000,
             snippet_score_threshold=0,
             symbol_extraction_enabled=True,
@@ -291,6 +294,7 @@ class AuthService:
     )
     symbol_cfg = RedconConfig(
         compression=CompressionSettings(
+            render_mode="compressed",
             full_file_threshold_tokens=1,
             snippet_score_threshold=0,
             snippet_total_line_limit=24,

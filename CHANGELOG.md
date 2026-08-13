@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default pack render mode is now **adaptive**: each ranked file is included
+  whole when it fits the remaining budget and compressed only on overflow (the
+  previous behaviour, always compressing, is still available with
+  `--render-mode compressed` or `[render] mode = "compressed"`). This is driven
+  by measurement: at equal budget, adaptive-rendered redcon beats both a naive
+  whole-file keyword retrieval and the old compressed pack on one-shot edit
+  fidelity (file-overlap 0.432 vs 0.319 vs 0.196 pooled; all three pre-registered
+  hypotheses hold - see `docs/research/exp3-adaptive-rendering.md`). **Pack
+  content changes on upgrade, so packs and their `prompt_cache_key` change once
+  and prompt-cache-style caches repopulate; the change is deterministic and one
+  time (same class of note as the 1.16 default-budget change). Pin the old
+  behaviour with `--render-mode compressed` if you need byte-identical packs.**
+
 ## [1.16.0] - 2026-08-09
 
 ### Changed
