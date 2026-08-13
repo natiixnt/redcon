@@ -21,17 +21,24 @@ channels), and pre-injecting the pack does not beat baseline in a multi-turn loo
 at any coverage (a 0.90-coverage 120k map ties recall at 3.4x cost, with a 33%
 turn-cap rate; precision is intact once redcon's own build artifact is excluded).
 A deterministic sweep shows the coverage ceiling is a **budget limit,
-not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Two
-follow-up experiments closed the remaining delivery questions, both negative: at
-equal budget redcon's selection does **not** beat cheap keyword retrieval in a
-one-shot, tool-less call (Experiment 1), and injecting only the ranking list does
-**not** beat baseline in a loop (Experiment 2). Redcon's demonstrated value is
+not a ranking limit** (pack file-hits climb 0.36 to 0.90 from 12k to 120k). Three
+follow-up experiments closed the delivery picture. Two are negative: injecting only
+the ranking list does not beat baseline in a multi-turn loop (Experiment 2), and
+redcon's default **compressed** pack does not beat cheap keyword retrieval in a
+one-shot, tool-less call (Experiment 1). The third is the program's **first
+positive**: **adaptive rendering** - redcon's same ranking delivered as whole files
+when they fit the budget, compressing only on overflow - **beats both naive keyword
+retrieval and compressed redcon on one-shot edit fidelity at equal budget**
+(Experiment 3; file-overlap 0.432 vs 0.319 vs 0.196 pooled). The mechanism is clean:
+per-parse quality matches naive (the whole-file format closes the gap that
+compression opened), and redcon's edge comes from a higher parse rate (its ranking
+makes the model commit to a valid diff more often). Redcon's demonstrated value is
 therefore **deterministic, budget-capped, auditable packing with measured token
-savings versus an agent reading the repository by hand (layer 1)** - not an
-end-task quality improvement. Selection quality does not convert into one-shot
-edit superiority over cheap keyword retrieval at equal budget, and push delivery
-is closed for interactive use at any weight (full map, 120k, top-10 list). No
-claim of end-task quality improvement is made anywhere in this evaluation.
+savings versus an agent reading the repository by hand (layer 1), plus a one-shot
+selection-quality advantage once the pack is rendered adaptively (Experiment 3)**.
+That advantage is scoped strictly to **one-shot and few-turn, non-interactive
+flows**; the multi-turn end-task negatives (night 1, night 2) stand, and no
+multi-turn end-task quality improvement is claimed anywhere in this evaluation.
 
 ## Setup
 
@@ -177,34 +184,34 @@ The two directions registered above were run and both came back negative.
    anchoring edits onto wrong files. Push delivery is closed for interactive use at
    any weight (full map, 120k, top-10 list), on cost and recall grounds. Full data:
    `docs/research/exp2-p-lite.md`.
+3. **Adaptive rendering (Experiment 3).** Resolved: **positive - the program's
+   first.** Experiment 1 traced redcon's one-shot gap to the render *format* (it
+   delivered symbol-compressed fragments while naive delivered whole files), not
+   the *ranking*. Adaptive rendering keeps redcon's ranking but delivers each file
+   whole when it fits the budget, compressing only on overflow. Arm W (the same
+   Experiment 1 harness with adaptive-mode context, 48 valid cells, no CLI drift)
+   confirms all three pre-registered hypotheses: **H1** W file-overlap beats naive
+   pooled and per corpus (0.432 vs 0.319; 0.656 vs 0.521 small; 0.208 vs 0.118
+   heavy); **H2** W beats compressed on both file- and line-overlap (0.432 vs 0.196,
+   0.095 vs 0.029); **H3** W heavy parse rate beats naive (0.62 vs 0.38). The
+   decomposition is clean: conditional-on-parse, W matches naive (0.560 vs 0.568)
+   and both far exceed compressed (0.377), so the whole-file format closes the
+   per-parse quality gap, while W's edge over naive is a higher parse rate - redcon's
+   ranking makes the model commit to a valid diff more often. At equal budget,
+   adaptive-rendered redcon beats both cheap keyword retrieval and compressed redcon
+   on one-shot edit fidelity. Per the pre-registered interpretation, adaptive becomes
+   the next-release default. Full data: `docs/research/exp3-adaptive-rendering.md`.
 
 ## Open questions (registered)
 
-One direction the data points to but does not settle:
-
-1. **Adaptive rendering (Experiment 3).** Experiment 1 found that on heavy repos
-   redcon only reaches parity via parse rate, and that naive's advantage rode on
-   delivering whole files the model could edit exactly, while redcon delivered
-   symbol-compressed fragments. That isolates a testable hypothesis: the drag was
-   the render *format*, not the *ranking*. Adaptive rendering walks the same
-   ranking order but includes each file whole when it fits the remaining budget
-   and falls back to the compressed entry only on overflow (see the adaptive
-   rendering change and `docs/research/exp3-adaptive-rendering.md`). Arm W reuses
-   the Experiment 1 harness unchanged (same 24 tasks, 2 repeats, equal budget,
-   tool-less single call, forced unified diff) with `redcon_context` built from
-   adaptive-mode output. Pre-registered hypotheses:
-   - **H1:** W file-overlap >= naive, pooled and per corpus (ranking does not hurt
-     once the format is equal).
-   - **H2:** W beats redcon-compressed on file-overlap and line-overlap (format,
-     not ranking, was the drag).
-   - **H3:** W parse rate on heavy >= naive parse rate on heavy (the
-     commit-to-a-valid-diff edge survives the format change).
-
-   Interpretation is fixed before the run: all three hold and adaptive becomes the
-   next release default with the measurement cited; H1 fails and positioning stays
-   cost-and-determinism only with adaptive optional; H2 fails and compression was
-   not the drag, so no default change and investigate before further spend; mixed
-   is exploratory only, no default change without a follow-up decision.
+All registered questions are resolved (see above). The three follow-ups closed the
+delivery picture: one-shot compressed selection does not beat naive (Exp 1,
+negative); ranking-list push does not beat baseline in a loop (Exp 2, negative);
+and adaptive rendering - redcon's ranking delivered as whole files when they fit -
+beats both naive and compressed on one-shot edit fidelity (Exp 3, positive). The
+scope of the Exp 3 win is strictly one-shot and few-turn, non-interactive flows;
+the multi-turn end-task negatives from night 1 and night 2 stand and are not
+reopened.
 
 ## Reproduce
 
