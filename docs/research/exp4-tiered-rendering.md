@@ -129,3 +129,61 @@ Same as Experiments 1 and 3: deterministic dev corpus and sweep, held-out eval s
 never used for tuning, results and transcripts kept, backups between passes,
 hypotheses and interpretation fixed before measurement. No agent runs until this
 design is approved and a window is confirmed.
+
+## Results (arm W2)
+
+Run of record: 48 valid cells (held-out 24 tasks x 2 repeats, arm W2 = tiered
+`topk:10`, CLI 2.1.220, no drift). $53.12 list-price. All numbers recompute from
+`benchmarks/agentic/results/exp4-full/records.jsonl` (committed with this PR)
+against the Experiment 3 `adaptive` and Experiment 1 `naive` / `redcon-compressed`
+records. Metrics are identical to Experiment 3, plus per-task pack-GT-coverage and
+the whole-vs-compressed delivery fractions.
+
+| arm | corpus | file-ov | line-ov | parse | input (cc) | eff | cost | cond-parse fo/lo (n) | GT-cov |
+|---|---|---|---|---|---|---|---|---|---|
+| W2 tiered | small | 0.625 | 0.172 | 0.88 | 83k | 0.757 | $0.67 | 0.714 / 0.197 (21) | 0.875 |
+| W2 tiered | heavy | 0.235 | 0.026 | 0.92 | 198k | 0.119 | $1.54 | 0.256 / 0.028 (22) | 0.756 |
+| adaptive | small | 0.656 | 0.141 | 0.92 | 79k | 0.827 | $0.66 | 0.716 / 0.154 (22) | 0.750 |
+| adaptive | heavy | 0.208 | 0.048 | 0.62 | 184k | 0.113 | $1.42 | 0.333 / 0.077 (15) | 0.363 |
+| naive | heavy | 0.118 | 0.006 | 0.38 | 203k | 0.058 | $1.48 | 0.315 / 0.016 (9) | 0.130 |
+| redcon-compressed | heavy | 0.122 | 0.020 | 0.54 | 197k | 0.062 | $1.51 | 0.225 / 0.036 (13) | 0.896 |
+
+W2 delivered whole at fraction: small 0.348, heavy 0.121.
+
+### Hypotheses against the pre-registered table
+
+- **H1 (W2 heavy file-overlap > adaptive 0.208): HELD** - 0.235.
+- **H2 (W2 heavy pack-GT-coverage >= 0.7): HELD** - 0.756 (recovered from adaptive's
+  0.363, near compressed's 0.896, as designed).
+- **H3 (W2 small file-overlap >= 0.606): HELD** - 0.625.
+
+All three hold.
+
+### Honest mechanism (the heavy win is parse-rate-driven)
+
+The heavy gain over adaptive is real but modest (+0.027) and comes from parse rate,
+not per-parse fidelity. W2 recovered coverage (0.756) and lifted the heavy parse
+rate to 0.92 (vs adaptive 0.62), so the model commits to a valid diff far more
+often. But conditional-on-parse, W2 heavy is lower (0.256 vs adaptive 0.333):
+editing from a mostly-compressed context is less exact per file. Net,
+0.92 x 0.256 = 0.235 beats 0.62 x 0.333 = 0.208. It is a trade, not a free win:
+W2 heavy line-overlap drops (0.026 vs 0.048) because it delivers fewer files whole
+(whole_frac 0.121 vs 0.430). On small, W2 file-overlap is marginally below adaptive
+(0.625 vs 0.656, inside the H3 margin) while line-overlap is above (0.172 vs 0.141).
+Pooled file-overlap is essentially tied (W2 0.430 vs adaptive 0.432): W2 shifts
+fidelity from small toward heavy and from line-exactness toward parse and coverage.
+
+### Paired per-cell (exploratory)
+
+Same (sha, repeat) cell on file-overlap, W2 vs adaptive (win / loss / tie):
+heavy **6 / 3 / 15**, small **1 / 2 / 21**. W2 wins more heavy cells than it loses
+and is near-neutral on small.
+
+### Size-gated composite (computed from measured cells, not a separate run)
+
+The product decision is a size-gated adaptive-v2 (plain adaptive below the top
+budget band, tiered `topk:10` in the >3M / 120k regime). Its expected one-shot
+file-overlap on this corpus, formed by taking the measured **adaptive** small cells
+and the measured **W2** heavy cells, is **pooled file-overlap 0.445** (vs plain
+adaptive 0.432 and plain compressed 0.196). This is a composite of already-measured
+cells, not a separate arm.
