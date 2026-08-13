@@ -29,7 +29,11 @@ _REPO_ROOT = _HERE.parent.parent
 # "adaptive" is Experiment 3 arm W: the redcon pack rendered adaptive (whole files
 # when they fit the budget, compressed on overflow), through the same public
 # run_pack path as "redcon".
-ARMS = ("redcon", "naive", "adaptive")
+# "tiered" is Experiment 4 arm W2: the redcon pack rendered adaptive with the
+# tiered policy topk:10 (top files whole, the rest compressed), through the same
+# public run_pack path as "adaptive".
+W2_TIERED_POLICY = "topk:10"
+ARMS = ("redcon", "naive", "adaptive", "tiered")
 MODEL = "sonnet"
 CANONICAL_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 600
@@ -104,7 +108,8 @@ def naive_context(worktree: Path, task: dict, budget: int) -> tuple[str, list[st
 
 
 def redcon_context(
-    worktree: Path, task: dict, budget: int, render_mode: str = "compressed"
+    worktree: Path, task: dict, budget: int, render_mode: str = "compressed",
+    tiered_policy: str = "",
 ) -> tuple[str, list[str], dict]:
     """The redcon pack's *content* for the task, the files it included, and the
     per-delivery-form breakdown.
@@ -116,17 +121,22 @@ def redcon_context(
     diff from. ``render_mode`` selects the shipped delivery form: ``compressed``
     (the default packer) or ``adaptive`` (whole files when they fit, else
     compressed), passed straight through the public ``run_pack`` call.
+    ``tiered_policy`` sets the Experiment 4 dev-only tiered knob on the config
+    (e.g. ``topk:10``) when arm W2 is run under adaptive.
     """
     from redcon.config import default_config  # noqa: PLC0415
     from redcon.core import pipeline  # noqa: PLC0415
     from redcon.stages.workflow import as_json_dict  # noqa: PLC0415
 
+    config = default_config()
+    if tiered_policy:
+        config.compression.tiered_policy = tiered_policy
     data = as_json_dict(
         pipeline.run_pack(
             task["phrasings"]["precise"],
             worktree,
             max_tokens=budget,
-            config=default_config(),
+            config=config,
             render_mode=render_mode,
             record_history=False,
         )
@@ -268,11 +278,19 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
         delivery = None
         if arm == "naive":
             context, ctx_files = naive_context(worktree, task, budget)
+        elif arm == "tiered":
+            context, ctx_files, delivery = redcon_context(
+                worktree, task, budget, render_mode="adaptive", tiered_policy=W2_TIERED_POLICY
+            )
         else:
             render_mode = "adaptive" if arm == "adaptive" else "compressed"
             context, ctx_files, delivery = redcon_context(
                 worktree, task, budget, render_mode=render_mode
             )
+        # Per-task pack-GT-coverage: fraction of ground-truth files present in the
+        # pack (H2 is evaluated on this for the tiered arm).
+        gt = set(task["changed_files"])
+        pack_gt_coverage = round(len(gt & set(ctx_files)) / len(gt), 6) if gt else 0.0
         command = _command(_prompt(context, task))
         started = time.monotonic()
         proc = subprocess.run(command, cwd=str(worktree), stdin=subprocess.DEVNULL,
@@ -297,6 +315,9 @@ def run_one(task: dict, arm: str, repeat: int, *, repo_path: Path, worktree: Pat
             # Whole-vs-compressed delivery breakdown from the pack artifact (adaptive
             # arm W mechanism metric); None for naive.
             "delivery": delivery,
+            # Pack-GT-coverage: fraction of ground-truth files the pack included
+            # (H2 for the tiered W2 arm).
+            "pack_gt_coverage": pack_gt_coverage,
             "changed_files": list(task["changed_files"]),
             "cost_usd": data.get("total_cost_usd"),
             "input_tokens": usage.get("inputTokens"),
