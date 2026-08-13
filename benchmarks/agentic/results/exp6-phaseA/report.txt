@@ -1,0 +1,63 @@
+
+=== Exp 6 Phase A: tool-result compression ceiling (night-2, offline) ===
+tool-results analysed: 5369 across 202 runs
+
+[baseline arm (primary)] savings by tool type
+kind             n   orig_tok   comp_tok   save%    med%
+read           226     216965     139528   35.7%    0.0%
+grep           369      79750      58597   26.5%    0.0%
+git_show        47      72313      72313    0.0%    0.0%
+bash_other     196      54019      52605    2.6%    0.0%
+other          135      11437      11437    0.0%    0.0%
+git_log         46      10828       8582   20.7%    9.5%
+git_diff        17       5477       1950   64.4%   83.6%
+listing         23       4328       3285   24.1%    0.0%
+git_-C           4       2491       2491    0.0%    0.0%
+git_merge-base     6       2218       2218    0.0%    0.0%
+git_status       7       1317       1311    0.5%    0.0%
+git_apply       13        861        861    0.0%    0.0%
+git_reset        6        776        776    0.0%    0.0%
+git_rev-parse     3        479        479    0.0%    0.0%
+git_cherry-pick     5        450        450    0.0%    0.0%
+git_branch       3        402        402    0.0%    0.0%
+git_stash        1        138        138    0.0%    0.0%
+git_-c           1         92         92    0.0%    0.0%
+git_remote       1         74         74    0.0%    0.0%
+git_checkout     1         17         17    0.0%    0.0%
+git_cat-file     1          4          4    0.0%    0.0%
+TOTAL         1111     464436     357610   23.0%
+
+[all arms] savings by tool type
+kind             n   orig_tok   comp_tok   save%    med%
+read          1211    1238121     694352   43.9%    0.0%
+grep          1727     402703     275833   31.5%    0.0%
+bash_other     953     293950     289797    1.4%    0.0%
+git_show       149     164280     164280    0.0%    0.0%
+other          868      74516      74516    0.0%    0.0%
+git_log        151      42552      29475   30.7%   10.2%
+git_diff        80      40944      14186   65.4%   66.0%
+listing         91      16017      12783   20.2%    0.0%
+git_-C          14       9330       9330    0.0%    0.0%
+git_merge-base    15       4857       4857    0.0%    0.0%
+git_status      20       3021       3012    0.3%    0.0%
+git_apply       42       2736       2736    0.0%    0.0%
+git_reset       12       1577       1577    0.0%    0.0%
+git_cherry-pick    13        866        866    0.0%    0.0%
+git_branch       7        839        839    0.0%    0.0%
+git_rev-parse     3        479        479    0.0%    0.0%
+git_restore      2        244        244    0.0%    0.0%
+git_-c           2        193        193    0.0%    0.0%
+git_checkout     4        157        157    0.0%    0.0%
+git_stash        1        138        138    0.0%    0.0%
+git_remote       2        121        121    0.0%    0.0%
+git_--no-pager     1         37         37    0.0%    0.0%
+git_cat-file     1          4          4    0.0%    0.0%
+TOTAL         5369    2297682    1579812   31.2%
+
+[baseline] per-run tool-result token reduction: median 18.3%, p25 4.5%, p75 29.2%
+
+[safety] edit-line coverage over 534 edited-file reads: 66.3%
+  when read delivered whole (328): 100.0%
+  when read delivered compressed (206): 12.6%
+
+[re-read] runs with any file read more than once: 146/203 (71.9%); mean max-reads-of-one-file 2.27
