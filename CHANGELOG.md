@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   smaller repositories are byte-identical. Pin `--render-mode compressed` for the
   pre-1.17.0 pack form.**
 
+### Fixed
+
+- The stdlib gateway now normalizes trailing optional whitespace in bearer tokens
+  before comparing them, so both server implementations (FastAPI and the stdlib
+  fallback) authenticate the same token identically.
+
 ## [1.17.0] - 2026-08-13
 
 ### Changed
