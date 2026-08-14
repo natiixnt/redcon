@@ -86,6 +86,10 @@ Keyed `(sha, phrasing, repeat)`, reduction of the run's own tool-result tokens:
 | precise (36, primary) | 17.3% | 4.5% | 25.2% |
 | all baseline (48)     | 15.8% | 4.2% | 29.2% |
 
+Percentiles are the value at the sorted zero-based index `floor(q * (n - 1))`
+with no interpolation (the "lower" nearest-rank method); a linear-interpolation
+percentile gives slightly different p25/p75.
+
 This is a **ceiling that includes read compression**, which the safety result
 below rules out. It is the most that a lossless-looking pass could remove from
 the results channel, not what is safely realizable.
@@ -114,6 +118,11 @@ each priced as a cache write plus later-turn cache reads:
 Read-side re-reads and command output are both cheap in cache terms (a read
 token costs one write plus 0.1x reads for its remaining turns), so even the full
 re-read volume plus every schema-aware command saving lands under 2% of the run.
+
+The mean run cost here is recomputed from each run's recorded token usage under
+this pricing model, so it differs from the night-2 recorded `cost_usd`; the 1.88%
+ratio applies the same model to both the cost and the savings, so it is internally
+consistent regardless of that offset.
 
 ### Safety: edit-line coverage
 
