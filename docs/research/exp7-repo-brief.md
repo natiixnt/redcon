@@ -28,10 +28,13 @@ exploration cost without hurting recall or precision.
 - **Task-independent and deterministic.** It takes no task input and produces no
   per-change file ranking. It is built from scan, role, and import-graph
   aggregates: module geography (subpackages of the dominant package, or top-level
-  directories, one line each with a short child descriptor), production entry
-  points (conventional `__main__.py`/`manage.py`/`cli.py`/`wsgi.py`/... files),
-  test layout (where tests live and how many), and root build and config files.
-  Same tree in, same brief out; a determinism test pins this.
+  directories, one line each with a short child descriptor), central modules (the
+  most-depended-on production files by import-graph incoming degree, a structural
+  property of the repo, not a task ranking), production entry points (conventional
+  `__main__.py`/`manage.py`/`cli.py`/`wsgi.py`/... files at path depth <= 2, so a
+  deeply nested `main.py` is not mistaken for a process entry point), test layout
+  (where tests live, how many, and the `conftest.py` count), and root build and
+  config files. Same tree in, same brief out; a determinism test pins this.
 - **Capped.** The brief is trimmed to a hard token ceiling (default 2000, target
   1-2k) so it is cheap to keep in context; geography is dropped from the tail to
   fit and the result is marked truncated.
@@ -112,22 +115,22 @@ Token counts and determinism, from `benchmarks/agentic/results/exp7-phaseA/index
 
 | repo | base commit | files | brief tokens | packages summarized |
 |---|---|---:|---:|---|
-| django | `36be97b99d4d` | 5635 | 463 | no |
-| django | `21c51c2623a9` | 5653 | 463 | no |
-| django | `56050acb96ab` | 5680 | 463 | no |
-| django | `673fa46d8063` | 5646 | 463 | no |
-| django | `e7f539f813bd` | 5653 | 463 | no |
-| django | `f2169ef36884` | 5638 | 463 | no |
-| sympy | `1e925fca57b6` | 2049 | 647 | yes |
-| sympy | `af838d955f42` | 2053 | 648 | yes |
-| sympy | `cbd5424918c3` | 2054 | 648 | yes |
-| sympy | `d3f6039f88b2` | 2063 | 648 | yes |
-| sympy | `afb25b0d7db1` | 2052 | 648 | yes |
-| sympy | `f9a6c6dda7c2` | 2052 | 648 | yes |
+| django | `36be97b99d4d` | 5635 | 556 | no |
+| django | `21c51c2623a9` | 5653 | 556 | no |
+| django | `56050acb96ab` | 5680 | 556 | no |
+| django | `673fa46d8063` | 5646 | 556 | no |
+| django | `e7f539f813bd` | 5653 | 556 | no |
+| django | `f2169ef36884` | 5638 | 556 | no |
+| sympy | `1e925fca57b6` | 2049 | 775 | yes |
+| sympy | `af838d955f42` | 2053 | 776 | yes |
+| sympy | `cbd5424918c3` | 2054 | 776 | yes |
+| sympy | `d3f6039f88b2` | 2063 | 776 | yes |
+| sympy | `afb25b0d7db1` | 2052 | 776 | yes |
+| sympy | `f9a6c6dda7c2` | 2052 | 776 | yes |
 
 All 12 briefs render byte-identically on a repeat build (the generator asserts
-it). Every brief is far under the 2000-token ceiling: django is 463 tokens across
-all six commits, sympy 647 to 648. The token count is near-constant across a
+it). Every brief is far under the 2000-token ceiling: django is 556 tokens across
+all six commits, sympy 775 to 776. The token count is near-constant across a
 repo's commits, which is the task independence and stability the design intends.
 
 The sympy "packages summarized" column is yes because sympy has more subpackages
@@ -136,9 +139,9 @@ folded into a "... and N more subpackages" line. That is the readability cap on 
 package list, not token-ceiling trimming: no brief here was trimmed to fit the
 token budget. django has fewer than 24 subpackages, so every one is listed.
 
-One known imperfection for review: the django briefs list
-`django/contrib/admin/views/main.py` under entry points because the entry-point
-detector matches the `main.py` basename anywhere in production code. It is a real
-module named `main.py`, not a process entry point. The behaviour is deterministic;
-tightening it (for example, root or package-root mains only) is a follow-up if the
-reviewer wants it.
+The briefs surface each repo's genuine core in the Central modules section (for
+django, `db/__init__.py` imported by 778 modules, `db/models/__init__.py` by 643,
+`core/exceptions.py` by 356; for sympy, its core and utilities packages), and the
+entry-point depth guard keeps out deep `main.py` files (the earlier
+`django/contrib/admin/views/main.py` false positive is gone), so django's only
+entry point is `django/__main__.py`.

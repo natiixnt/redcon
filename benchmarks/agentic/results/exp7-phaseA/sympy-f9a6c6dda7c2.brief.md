@@ -30,6 +30,16 @@ Task-independent map of 2052 scanned files (.py x1590, .rst x305, .svg x50), 142
 - ... and 16 more `sympy/` subpackages
 - `sympy/` top-level modules: __init__, abc, conftest, galgebra, py, release, this
 
+## Central modules
+- `sympy/core/symbol.py` (imported by 563 modules)
+- `sympy/core/numbers.py` (imported by 509 modules)
+- `sympy/testing/pytest.py` (imported by 431 modules)
+- `sympy/core/singleton.py` (imported by 413 modules)
+- `sympy/core/__init__.py` (imported by 325 modules)
+- `sympy/core/function.py` (imported by 320 modules)
+- `sympy/functions/elementary/miscellaneous.py` (imported by 311 modules)
+- `sympy/functions/elementary/trigonometric.py` (imported by 274 modules)
+
 ## Entry points
 - no conventional entry-point files detected
 
@@ -38,6 +48,7 @@ Task-independent map of 2052 scanned files (.py x1590, .rst x305, .svg x50), 142
 - `sympy/`: 716 files
 - `bin/`: 15 files
 - `doc/`: 1 file
+- 2 files named `conftest.py`
 
 ## Build and config
 - `pyproject.toml`
