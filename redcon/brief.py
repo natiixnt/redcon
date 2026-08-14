@@ -169,19 +169,25 @@ def _geography_lines(prod_files: list[FileRecord], package: str | None) -> tuple
 
 
 def _entrypoints(files: list[FileRecord]) -> list[str]:
-    # Production entry points only, so example and generated mains do not crowd out
-    # the real ones.
+    # Production entry points only, shallow paths only (depth <= 2). A file named
+    # main.py deep in the tree (e.g. an admin view) is not a process entry point,
+    # so the depth guard keeps that class of false positive out.
     found: list[str] = []
     for record in files:
-        if record.role == "prod" and _posix(record.path).name in _ENTRYPOINT_NAMES:
+        parts = _posix(record.path).parts
+        if record.role == "prod" and len(parts) <= 2 and parts[-1] in _ENTRYPOINT_NAMES:
             found.append(record.path)
     return sorted(set(found))
 
 
 def _test_layout(files: list[FileRecord]) -> list[str]:
+    conftests = sum(1 for f in files if _posix(f.path).name == "conftest.py")
     test_files = [f for f in files if f.role == "test"]
     if not test_files:
-        return ["- no dedicated test files detected"]
+        lines = ["- no dedicated test files detected"]
+        if conftests:
+            lines.append(f"- {_files(conftests)} named `conftest.py`")
+        return lines
     top_dirs: Counter[str] = Counter()
     for record in test_files:
         top_dirs[_top_component(record.path)] += 1
@@ -189,7 +195,21 @@ def _test_layout(files: list[FileRecord]) -> list[str]:
     for top in sorted(top_dirs, key=lambda name: (-top_dirs[name], name))[:6]:
         label = f"`{top}/`" if top and "." not in top else "(repository root)"
         lines.append(f"- {label}: {_files(top_dirs[top])}")
+    lines.append(f"- {_files(conftests)} named `conftest.py`")
     return lines
+
+
+def _central_modules(prod_paths: set[str], graph, limit: int = 8) -> list[tuple[str, int]]:
+    """The most-depended-on production modules: files with the highest import-graph
+    incoming degree. Sorted by degree descending, then path ascending. This is a
+    structural property of the repository, not a task-specific ranking."""
+    ranked = [
+        (path, len(importers))
+        for path, importers in graph.incoming.items()
+        if path in prod_paths and importers
+    ]
+    ranked.sort(key=lambda item: (-item[1], item[0]))
+    return ranked[:limit]
 
 
 def _build_config(files: list[FileRecord]) -> list[str]:
@@ -203,11 +223,16 @@ def _render(
     file_count: int,
     lang_summary: str,
     geography: list[str],
+    central: list[tuple[str, int]],
     entrypoints: list[str],
     test_layout: list[str],
     build_config: list[str],
     import_edges: int,
 ) -> str:
+    central_lines = [
+        f"- `{path}` (imported by {_files(degree).replace('file', 'module')})"
+        for path, degree in central
+    ] or ["- no internal import structure detected"]
     parts = [
         f"# Repository brief: {repo_name}",
         "",
@@ -218,6 +243,9 @@ def _render(
         "",
         "## Module geography",
         *geography,
+        "",
+        "## Central modules",
+        *central_lines,
         "",
         "## Entry points",
         *([f"- `{p}`" for p in entrypoints] or ["- no conventional entry-point files detected"]),
@@ -267,6 +295,7 @@ def build_brief(
     lang_summary = _language_summary(files)
     graph = build_import_graph(files, set(_ENTRYPOINT_NAMES))
     import_edges = sum(len(v) for v in graph.outgoing.values())
+    central = _central_modules({f.path for f in prod_files}, graph)
 
     repo_name = repo_path.resolve().name
 
@@ -276,6 +305,7 @@ def build_brief(
             len(files),
             lang_summary,
             geo,
+            central,
             entrypoints,
             test_layout,
             build_config,

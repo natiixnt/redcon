@@ -3,7 +3,7 @@
     "repo": "django",
     "sha": "36be97b99d4d",
     "brief": "django-36be97b99d4d.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5635,
     "truncated": false
   },
@@ -11,7 +11,7 @@
     "repo": "django",
     "sha": "21c51c2623a9",
     "brief": "django-21c51c2623a9.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5653,
     "truncated": false
   },
@@ -19,7 +19,7 @@
     "repo": "sympy",
     "sha": "1e925fca57b6",
     "brief": "sympy-1e925fca57b6.brief.md",
-    "tokens": 647,
+    "tokens": 775,
     "file_count": 2049,
     "truncated": true
   },
@@ -27,7 +27,7 @@
     "repo": "sympy",
     "sha": "af838d955f42",
     "brief": "sympy-af838d955f42.brief.md",
-    "tokens": 648,
+    "tokens": 776,
     "file_count": 2053,
     "truncated": true
   },
@@ -35,7 +35,7 @@
     "repo": "django",
     "sha": "56050acb96ab",
     "brief": "django-56050acb96ab.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5680,
     "truncated": false
   },
@@ -43,7 +43,7 @@
     "repo": "django",
     "sha": "673fa46d8063",
     "brief": "django-673fa46d8063.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5646,
     "truncated": false
   },
@@ -51,7 +51,7 @@
     "repo": "sympy",
     "sha": "cbd5424918c3",
     "brief": "sympy-cbd5424918c3.brief.md",
-    "tokens": 648,
+    "tokens": 776,
     "file_count": 2054,
     "truncated": true
   },
@@ -59,7 +59,7 @@
     "repo": "sympy",
     "sha": "d3f6039f88b2",
     "brief": "sympy-d3f6039f88b2.brief.md",
-    "tokens": 648,
+    "tokens": 776,
     "file_count": 2063,
     "truncated": true
   },
@@ -67,7 +67,7 @@
     "repo": "django",
     "sha": "e7f539f813bd",
     "brief": "django-e7f539f813bd.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5653,
     "truncated": false
   },
@@ -75,7 +75,7 @@
     "repo": "django",
     "sha": "f2169ef36884",
     "brief": "django-f2169ef36884.brief.md",
-    "tokens": 463,
+    "tokens": 556,
     "file_count": 5638,
     "truncated": false
   },
@@ -83,7 +83,7 @@
     "repo": "sympy",
     "sha": "afb25b0d7db1",
     "brief": "sympy-afb25b0d7db1.brief.md",
-    "tokens": 648,
+    "tokens": 776,
     "file_count": 2052,
     "truncated": true
   },
@@ -91,7 +91,7 @@
     "repo": "sympy",
     "sha": "f9a6c6dda7c2",
     "brief": "sympy-f9a6c6dda7c2.brief.md",
-    "tokens": 648,
+    "tokens": 776,
     "file_count": 2052,
     "truncated": true
   }
