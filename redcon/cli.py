@@ -2731,6 +2731,71 @@ def cmd_repo_map(args: argparse.Namespace) -> int:
     return 0
 
 
+_BRIEF_DEFAULT_MAX_TOKENS = 2000
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    """Generate a deterministic, task-independent repository brief."""
+    from redcon.brief import build_brief
+
+    try:
+        brief = build_brief(args.repo, max_tokens=max(200, args.max_tokens))
+    except Exception as e:  # noqa: BLE001 - surface any scan/build error as exit 2
+        print(f"Error: brief failed: {e}", file=sys.stderr)
+        return 2
+
+    if args.check is not None:
+        target = Path(args.check)
+        if not target.exists():
+            print(
+                f"redcon brief --check: {target} does not exist; "
+                f"create it with `redcon brief --repo {args.repo} --out {target}`",
+                file=sys.stderr,
+            )
+            return 1
+        if target.read_text(encoding="utf-8") != brief.text:
+            print(
+                f"redcon brief --check: {target} is stale; "
+                f"regenerate with `redcon brief --repo {args.repo} --out {target}`",
+                file=sys.stderr,
+            )
+            return 1
+        if not getattr(args, "quiet", False):
+            print(
+                f"redcon brief --check: {target} is up to date ({brief.tokens} tokens)",
+                file=sys.stderr,
+            )
+        return 0
+
+    if args.json:
+        payload = {
+            "repo": brief.repo,
+            "tokens": brief.tokens,
+            "file_count": brief.file_count,
+            "truncated": brief.truncated,
+            "text": brief.text,
+        }
+        print(_json_mod.dumps(payload, indent=2))
+        return 0
+
+    if args.out:
+        Path(args.out).write_text(brief.text, encoding="utf-8")
+        if not getattr(args, "quiet", False):
+            print(
+                f"redcon brief: wrote {brief.tokens} tokens to {args.out}",
+                file=sys.stderr,
+            )
+    else:
+        if not getattr(args, "quiet", False):
+            trunc = " (truncated)" if brief.truncated else ""
+            print(
+                f"redcon brief: {brief.file_count} files, {brief.tokens} tokens{trunc}",
+                file=sys.stderr,
+            )
+        print(brief.text, end="")
+    return 0
+
+
 def cmd_cmd_quality(args: argparse.Namespace) -> int:
     """Run the M8 quality harness; non-zero exit on any failure (for CI)."""
     from redcon.cmd.quality import run_quality_check
@@ -4150,6 +4215,39 @@ def _register_dev_commands(sub: argparse._SubParsersAction) -> None:
         help="Emit a structured JSON report instead of plain text",
     )
     repo_map_parser.set_defaults(func=cmd_repo_map)
+
+    brief_parser = sub.add_parser(
+        "brief",
+        help=(
+            "Generate a deterministic, task-independent repository brief "
+            "(module geography, entry points, test layout, build conventions)"
+        ),
+    )
+    brief_parser.add_argument(
+        "--repo", default=".", help="Repository path (default: current directory)"
+    )
+    brief_parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=_BRIEF_DEFAULT_MAX_TOKENS,
+        help=f"Token ceiling for the brief (default: {_BRIEF_DEFAULT_MAX_TOKENS})",
+    )
+    brief_parser.add_argument(
+        "--out", default=None, help="Write the brief to this path instead of stdout"
+    )
+    brief_parser.add_argument(
+        "--check",
+        default=None,
+        metavar="PATH",
+        help="Verify the brief at PATH is current; exit nonzero when stale or missing",
+    )
+    brief_parser.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit a structured JSON report instead of plain text",
+    )
+    brief_parser.set_defaults(func=cmd_brief)
 
 
 def build_parser() -> argparse.ArgumentParser:
