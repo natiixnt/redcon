@@ -400,9 +400,7 @@ def _restrict_to_paths(
         want = _norm_rel(raw)
         if not want:
             continue
-        key = want if want in scanned else next(
-            (k for k in scanned if k.endswith("/" + want)), ""
-        )
+        key = want if want in scanned else next((k for k in scanned if k.endswith("/" + want)), "")
         if not key or key in seen:
             continue
         seen.add(key)

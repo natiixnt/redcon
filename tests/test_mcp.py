@@ -223,7 +223,9 @@ def test_tool_schema_size_stays_slim():
 
 
 def test_compress_returns_requested_file_not_only_top_ranked(tmp_path):
-    (tmp_path / "auth.py").write_text("def login(user, password):\n    return check(user, password)\n")
+    (tmp_path / "auth.py").write_text(
+        "def login(user, password):\n    return check(user, password)\n"
+    )
     (tmp_path / "auth_tokens.py").write_text("def issue_token(user):\n    return 'tok'\n")
     (tmp_path / "billing.py").write_text("def charge(amount):\n    return amount\n")
     task = "fix login auth"
