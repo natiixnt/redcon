@@ -27,7 +27,7 @@ from redcon.core.run_feed import write_run_feed_artifact
 from redcon.core.tokens import normalize_token_estimator_report
 from redcon.entitlements import load_entitlement
 from redcon.plugins import ResolvedPlugins, resolve_plugins
-from redcon.schemas.models import DEFAULT_TOP_FILES, RunReport
+from redcon.schemas.models import DEFAULT_TOP_FILES, RankedFile, RunReport
 from redcon.scorers.import_graph import build_import_graph
 from redcon.stages.workflow import (
     as_json_dict,
@@ -375,6 +375,52 @@ def run_simulate_agent(
     return data
 
 
+def _norm_rel(path: str) -> str:
+    p = str(path).replace("\\", "/").strip()
+    while p.startswith("./"):
+        p = p[2:]
+    return p.strip("/")
+
+
+def _restrict_to_paths(
+    ranked: list[RankedFile], files: list[Any], only_paths: list[str]
+) -> list[RankedFile]:
+    """Keep only the requested files, in request order.
+
+    A requested file the scorer did not rank (zero relevance to the task) is
+    still returned, with score 0, as long as the scan saw it - so secret and
+    ignore rules still apply: a path the scan excluded is never packed.
+    """
+
+    by_path = {_norm_rel(item.file.path): item for item in ranked}
+    scanned = {_norm_rel(record.path): record for record in files}
+    out: list[RankedFile] = []
+    seen: set[str] = set()
+    for raw in only_paths:
+        want = _norm_rel(raw)
+        if not want:
+            continue
+        key = want if want in scanned else next(
+            (k for k in scanned if k.endswith("/" + want)), ""
+        )
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        if key in by_path:
+            out.append(by_path[key])
+        else:
+            record = scanned[key]
+            out.append(
+                RankedFile(
+                    file=record,
+                    score=0.0,
+                    reasons=["requested explicitly"],
+                    role=getattr(record, "role", "") or "prod",
+                )
+            )
+    return out
+
+
 def run_pack(
     task: str,
     repo: Path,
@@ -390,6 +436,7 @@ def run_pack(
     compression_profile: str | None = None,
     render_mode: str | None = None,
     changed_files: list[str] | None = None,
+    only_paths: list[str] | None = None,
 ) -> RunReport:
     """Run pack command pipeline and return typed run report."""
 
@@ -469,6 +516,8 @@ def run_pack(
         ranked_files=ranked_count,
         top_files=telemetry_top_files,
     )
+    if only_paths:
+        ranked = _restrict_to_paths(ranked, files, only_paths)
     if effective_top_files is not None:
         ranked = ranked[:effective_top_files]
     # Reuse the graph the scoring stage already built (memoized on the file

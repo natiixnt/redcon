@@ -324,6 +324,7 @@ class RedconEngine:
         compression_profile: str | None = None,
         render_mode: str | None = None,
         changed_files: list[str] | None = None,
+        only_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         """Build compressed context under token and file budgets.
 
@@ -366,6 +367,7 @@ class RedconEngine:
                     compression_profile=compression_profile,
                     render_mode=render_mode,
                     changed_files=changed_files,
+                    only_paths=only_paths,
                 )
                 result = as_json_dict(report)
             else:
@@ -381,6 +383,7 @@ class RedconEngine:
                     compression_profile=compression_profile,
                     render_mode=render_mode,
                     changed_files=changed_files,
+                    only_paths=only_paths,
                 )
                 result = as_json_dict(report)
 
