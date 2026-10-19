@@ -220,3 +220,29 @@ def test_tool_schema_size_stays_slim():
     assert schema_chars <= 7000, f"tool schema grew to {schema_chars} chars"
     # The load-bearing guidance must survive any future trim.
     assert "FIRST" in _TOOL_SCHEMAS[0]["description"]  # redcon_rank
+
+
+def test_compress_returns_requested_file_not_only_top_ranked(tmp_path):
+    (tmp_path / "auth.py").write_text("def login(user, password):\n    return check(user, password)\n")
+    (tmp_path / "auth_tokens.py").write_text("def issue_token(user):\n    return 'tok'\n")
+    (tmp_path / "billing.py").write_text("def charge(amount):\n    return amount\n")
+    task = "fix login auth"
+    ranked = [f["path"] for f in tools.tool_rank(task=task, repo=str(tmp_path), top_k=5)["files"]]
+    assert len(ranked) >= 2
+    for path in ranked[1:] + ["billing.py"]:  # lower-ranked and unrelated files
+        result = tools.tool_compress(path=path, task=task, repo=str(tmp_path))
+        assert "error" not in result, result
+        assert result["path"].endswith(path)
+
+
+def test_compress_missing_file_is_an_error(tmp_path):
+    (tmp_path / "auth.py").write_text("def login(): pass\n")
+    result = tools.tool_compress(path="missing.py", task="auth", repo=str(tmp_path))
+    assert "error" in result
+
+
+def test_compress_never_returns_secret_files(tmp_path):
+    (tmp_path / "auth.py").write_text("def login(): pass\n")
+    (tmp_path / ".env").write_text("API_KEY=supersecret\n")
+    result = tools.tool_compress(path=".env", task="auth api key", repo=str(tmp_path))
+    assert "error" in result and "supersecret" not in str(result)

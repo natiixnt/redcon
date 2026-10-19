@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `redcon_compress` now compresses the file it was asked for. It used to pack only
+  the single top-ranked file for the task and returned "file not found in ranked
+  results" for every other path, so it worked for one file per task. `pack` and
+  `run_pack` take a new optional `only_paths` argument that restricts the pack to
+  the given files (still subject to scan ignore and secret rules); a requested
+  file with no relevance to the task is packed with score 0.
+
 ## [1.18.0] - 2026-08-14
 
 ### Changed

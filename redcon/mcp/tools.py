@@ -283,11 +283,15 @@ def tool_compress(
 
     engine = _make_engine(config_path)
     try:
+        # Pack exactly the requested file. Without only_paths the pack picked the
+        # single top-ranked file for the task and this tool failed for every
+        # other path ("file not found in ranked results").
         result = engine.pack(
             task=task,
             repo=repo,
             max_tokens=max_tokens,
             top_files=1,
+            only_paths=[path],
         )
     except Exception as e:
         logger.exception("mcp.compress: engine.pack failed")
@@ -306,7 +310,7 @@ def tool_compress(
     if match is None:
         return {
             "path": path,
-            "error": "file not found in ranked results for this task",
+            "error": "file not found in the scanned repository (missing, ignored or excluded as a secret)",
             "available": [c.get("path", "") for c in compressed[:5]],
         }
 
